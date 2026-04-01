@@ -1,0 +1,86 @@
+import { readCache, writeCache, getAgeMinutes } from "../cache";
+import { scrapeHackerNews } from "../scrapers/hackernews";
+import { scrapeDevTo } from "../scrapers/devto";
+import { scrapeLobsters } from "../scrapers/lobsters";
+import {
+  scrapeRedditML,
+  scrapeRedditLocalLLaMA,
+  scrapeRedditArtificial,
+  scrapeRedditProgramming,
+} from "../scrapers/reddit";
+import { scrapeArxivAI, scrapeArxivML } from "../scrapers/arxiv";
+import { scrapeGitHubTrending } from "../scrapers/github";
+import { scrapeGeekNews } from "../scrapers/geeknews";
+import { Category, NewsItem, NewsSource, TrendingNewsResult } from "../types";
+
+const SOURCE_CATEGORIES: Record<NewsSource, Category[]> = {
+  hackernews: ["dev-tools", "AI"],
+  devto: ["dev-tools", "AI"],
+  lobsters: ["dev-tools"],
+  reddit_ml: ["AI"],
+  reddit_localllama: ["AI"],
+  reddit_artificial: ["AI", "community"],
+  reddit_programming: ["dev-tools", "community"],
+  arxiv_ai: ["AI"],
+  arxiv_ml: ["AI"],
+  github: ["dev-tools"],
+  geeknews: ["community", "dev-tools"],
+};
+
+function filterByCategory(items: NewsItem[], category: Category): NewsItem[] {
+  if (category === "all") return items;
+  return items.filter((item) => {
+    const cats = SOURCE_CATEGORIES[item.source];
+    return cats.includes(category);
+  });
+}
+
+async function fetchAllSources(): Promise<NewsItem[]> {
+  const scrapers: Array<() => Promise<NewsItem[]>> = [
+    scrapeHackerNews,
+    scrapeDevTo,
+    scrapeLobsters,
+    scrapeRedditML,
+    scrapeRedditLocalLLaMA,
+    scrapeRedditArtificial,
+    scrapeRedditProgramming,
+    scrapeArxivAI,
+    scrapeArxivML,
+    scrapeGitHubTrending,
+    scrapeGeekNews,
+  ];
+
+  const results = await Promise.allSettled(scrapers.map((fn) => fn()));
+  const allItems: NewsItem[] = [];
+
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      allItems.push(...result.value);
+    } else {
+      console.warn("[scraper] Source failed:", result.reason);
+    }
+  }
+
+  return allItems;
+}
+
+export async function getTrendingNews(
+  category: Category = "all",
+  refresh = false
+): Promise<TrendingNewsResult> {
+  let cache = refresh ? null : readCache();
+
+  if (!cache) {
+    const items = await fetchAllSources();
+    cache = writeCache(items);
+  }
+
+  const filtered = filterByCategory(cache.items, category);
+
+  return {
+    cached_at: cache.cached_at,
+    age_minutes: getAgeMinutes(cache.cached_at),
+    total: filtered.length,
+    items: filtered,
+  };
+}
