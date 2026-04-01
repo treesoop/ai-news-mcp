@@ -6,9 +6,17 @@ Sources: HackerNews, Reddit (ML/LocalLLaMA/artificial/programming), ArXiv (cs.AI
 
 ## Quick Start (No install, no login)
 
-Add directly to your Claude config — **no Smithery account, no API key needed**:
+**No Smithery account needed.** Just use the URL directly — no API key, no auth.
 
-### Claude Code (`~/.claude.json`)
+### Claude Code CLI (one command)
+
+```bash
+claude mcp add --transport http ai-news https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp
+```
+
+That's it. Run this once and the tools are available in any Claude Code session.
+
+### Manual config — Claude Code (`~/.claude.json`)
 
 ```json
 {
@@ -21,7 +29,7 @@ Add directly to your Claude config — **no Smithery account, no API key needed*
 }
 ```
 
-### Claude Desktop (`claude_desktop_config.json`)
+### Manual config — Claude Desktop (`claude_desktop_config.json`)
 
 ```json
 {
@@ -34,13 +42,11 @@ Add directly to your Claude config — **no Smithery account, no API key needed*
 }
 ```
 
-### Any MCP client (HTTP transport)
+### Any MCP client (HTTP/Streamable HTTP transport)
 
 ```
 https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp
 ```
-
-No headers, no auth, no setup. Just the URL.
 
 ---
 
