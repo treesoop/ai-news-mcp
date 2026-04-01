@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^16.6.1",
     "fast-xml-parser": "^4.3.0"
   },
   "devDependencies": {

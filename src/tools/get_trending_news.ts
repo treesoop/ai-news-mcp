@@ -1,4 +1,4 @@
-import { readCache, writeCache, getAgeMinutes } from "../cache";
+import { readCache, readCachePrimary, writeCache, getAgeMinutes } from "../cache";
 import { scrapeHackerNews } from "../scrapers/hackernews";
 import { scrapeDevTo } from "../scrapers/devto";
 import { scrapeLobsters } from "../scrapers/lobsters";
@@ -68,7 +68,7 @@ export async function getTrendingNews(
   category: Category = "all",
   refresh = false
 ): Promise<TrendingNewsResult> {
-  let cache = refresh ? null : readCache();
+  let cache = refresh ? null : await readCachePrimary();
 
   if (!cache) {
     const items = await fetchAllSources();

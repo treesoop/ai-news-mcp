@@ -1,0 +1,26 @@
+name: ai-news-mcp
+version: "1.0.0"
+description: "Real-time AI/tech news aggregator — HackerNews, Reddit (ML/LocalLLaMA/artificial), ArXiv, GitHub Trending, Dev.to, Lobsters. Cached every 30min. Tools: trending news, repo quickstart, paper briefs, search, topic suggestions."
+homepage: "https://github.com/potenlab/ai-news-mcp"
+license: MIT
+tools:
+  - name: get_trending_news
+    description: Get latest AI/tech news from 11 sources
+  - name: get_top_picks
+    description: Top N most relevant items for AI engineers
+  - name: get_repo_quickstart
+    description: Get install commands and quickstart from any GitHub repo
+  - name: get_paper_brief
+    description: Get abstract summary and code link for ArXiv papers
+  - name: search_today
+    description: Search today's news by keyword
+  - name: get_new_since
+    description: Get items added since a given timestamp
+  - name: get_topic_suggestions
+    description: Blog topic suggestions based on trending news
+  - name: check_cache
+    description: Check cache status
+startCommand:
+  type: stdio
+  command: node
+  args: ["dist/index.js"]

@@ -1,6 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
+import * as dotenv from "dotenv";
 import { CacheData, NewsItem, NewsSource } from "./types";
+import { readCacheFromSupabase, isSupabaseConfigured } from "./supabase";
+
+// Load .env from project root (quiet — env already loaded by index.ts)
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 const CACHE_DIR = path.join(__dirname, "..", "cache");
 
@@ -57,3 +62,22 @@ export function getAgeMinutes(cachedAt: string): number {
   const now = Date.now();
   return Math.floor((now - cached) / 60000);
 }
+
+/**
+ * Read cache — tries Supabase first, falls back to local file cache.
+ */
+export async function readCachePrimary(): Promise<CacheData | null> {
+  const supabaseData = await readCacheFromSupabase();
+  if (supabaseData) {
+    console.error("[cache] Using Supabase cache");
+    return supabaseData;
+  }
+  // Fall back to local file
+  const local = readCache();
+  if (local) {
+    console.error("[cache] Supabase unavailable — using local file cache");
+  }
+  return local;
+}
+
+export { isSupabaseConfigured };

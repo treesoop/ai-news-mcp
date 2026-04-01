@@ -1,4 +1,4 @@
-import { readCache, writeCache, getAgeMinutes } from "../cache";
+import { readCachePrimary } from "../cache";
 import { getTrendingNews } from "./get_trending_news";
 import { NewsItem, NewsSource, Project, TopicSuggestion, TopicSuggestionsResult } from "../types";
 
@@ -74,11 +74,11 @@ export async function getTopicSuggestions(
   slots: number = 3,
   usedTopics: string[] = []
 ): Promise<TopicSuggestionsResult> {
-  // Get fresh or cached news
-  let cache = readCache();
+  // Get fresh or cached news (Supabase first, then local)
+  let cache = await readCachePrimary();
   if (!cache) {
-    const news = await getTrendingNews("all", false);
-    cache = readCache();
+    await getTrendingNews("all", false);
+    cache = await readCachePrimary();
   }
 
   if (!cache) {
