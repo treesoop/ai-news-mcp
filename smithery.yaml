@@ -1,7 +1,7 @@
 name: ai-news-mcp
 version: "1.0.0"
 description: "Real-time AI/tech news aggregator — HackerNews, Reddit (ML/LocalLLaMA/artificial), ArXiv, GitHub Trending, Dev.to, Lobsters. Cached every 30min. Tools: trending news, repo quickstart, paper briefs, search, topic suggestions."
-homepage: "https://github.com/potenlab/ai-news-mcp"
+homepage: "https://github.com/treesoop/ai-news-mcp"
 license: MIT
 tools:
   - name: get_trending_news
