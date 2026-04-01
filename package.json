@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@types/express": "^5.0.6",
     "dotenv": "^16.6.1",
+    "express": "^5.2.1",
     "fast-xml-parser": "^4.3.0"
   },
   "devDependencies": {

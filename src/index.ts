@@ -4,8 +4,11 @@ import * as dotenv from "dotenv";
 // Load .env before anything else
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
+import * as http from "http";
+import express from "express";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -282,10 +285,64 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-async function main() {
+function buildServer(): Server {
+  const srv = new Server(
+    { name: "ai-news-mcp", version: "1.0.0" },
+    { capabilities: { tools: {} } }
+  );
+
+  srv.setRequestHandler(ListToolsRequestSchema, server["_requestHandlers"].get(ListToolsRequestSchema.shape.method.value) as never);
+  srv.setRequestHandler(CallToolRequestSchema, server["_requestHandlers"].get(CallToolRequestSchema.shape.method.value) as never);
+  return srv;
+}
+
+async function startHttp() {
+  const PORT = parseInt(process.env.PORT ?? "3000", 10);
+  const app = express();
+  app.use(express.json());
+
+  async function handleMcp(req: express.Request, res: express.Response) {
+    const srv = new Server(
+      { name: "ai-news-mcp", version: "1.0.0" },
+      { capabilities: { tools: {} } }
+    );
+    attachHandlers(srv);
+
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on("close", () => transport.close());
+    await srv.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  }
+
+  app.post("/mcp", handleMcp);
+  app.get("/mcp", handleMcp);
+  app.delete("/mcp", (_req, res) => res.status(405).json({ error: "Method not allowed" }));
+  app.get("/health", (_req, res) => res.json({ status: "ok", server: "ai-news-mcp", version: "1.0.0" }));
+
+  app.listen(PORT, () => console.error(`[ai-news-mcp] HTTP server on port ${PORT}`));
+}
+
+function attachHandlers(srv: Server) {
+  srv.setRequestHandler(ListToolsRequestSchema, async () => {
+    return server.request({ method: "tools/list" } as never, ListToolsRequestSchema as never);
+  });
+  srv.setRequestHandler(CallToolRequestSchema, async (req) => {
+    return server.request(req as never, CallToolRequestSchema as never);
+  });
+}
+
+async function startStdio() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("[ai-news-mcp] Server running on stdio");
+}
+
+async function main() {
+  if (process.env.PORT || process.env.HTTP_MODE === "1") {
+    await startHttp();
+  } else {
+    await startStdio();
+  }
 }
 
 main().catch((err) => {
