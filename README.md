@@ -1,6 +1,77 @@
 # ai-news-mcp
 
-MCP (Model Context Protocol) server that aggregates real-time AI/tech news from 11 sources with 1-hour file caching.
+Real-time AI/tech news aggregator MCP server — deployed on Supabase Edge Functions, **free to use, no auth required**.
+
+Sources: HackerNews, Reddit (ML/LocalLLaMA/artificial/programming), ArXiv (cs.AI + cs.LG), GitHub Trending, Dev.to, Lobsters, GeekNews. Cache updated every 6 hours.
+
+## Quick Start (No install, no login)
+
+Add directly to your Claude config — **no Smithery account, no API key needed**:
+
+### Claude Code (`~/.claude.json`)
+
+```json
+{
+  "mcpServers": {
+    "ai-news": {
+      "type": "http",
+      "url": "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp"
+    }
+  }
+}
+```
+
+### Claude Desktop (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "ai-news": {
+      "type": "http",
+      "url": "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp"
+    }
+  }
+}
+```
+
+### Any MCP client (HTTP transport)
+
+```
+https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp
+```
+
+No headers, no auth, no setup. Just the URL.
+
+---
+
+## Tools
+
+| Tool | Description |
+|---|---|
+| `get_trending_news` | Latest AI/tech news from all sources. Filter by category: `AI` or `dev-tools` |
+| `get_top_picks` | Top N most relevant items for AI engineers |
+| `search_today` | Search today's news by keyword |
+| `get_new_since` | Items added after a given timestamp |
+| `get_repo_quickstart` | Install commands & quickstart from any GitHub repo URL |
+| `get_paper_brief` | Abstract + code link for any ArXiv paper URL |
+| `get_topic_suggestions` | Blog topic ideas based on trending news |
+| `check_cache` | Cache status and last update time |
+
+### Example calls
+
+```bash
+# Get top AI news
+curl -s -X POST "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_top_picks","arguments":{"n":5}}}'
+
+# Search for RAG-related news
+curl -s -X POST "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_today","arguments":{"keyword":"RAG"}}}'
+```
+
+---
 
 ## Sources
 
@@ -18,63 +89,27 @@ MCP (Model Context Protocol) server that aggregates real-time AI/tech news from 
 | GitHub Trending | HTML scrape | dev-tools |
 | GeekNews | HTML scrape | community, dev-tools |
 
-## Setup
+---
+
+## Self-hosting
+
+If you want to run your own instance:
 
 ```bash
-npm install
-npm run build
+git clone https://github.com/treesoop/ai-news-mcp
+cd ai-news-mcp
+npm install && npm run build
 ```
 
-## MCP Tools
+Deploy the Supabase Edge Function in `supabase/functions/mcp/` to your own Supabase project.
 
-### `get_trending_news`
-Fetch aggregated news with optional category filter.
-
-```json
-{ "category": "AI", "refresh": false }
-```
-
-### `get_topic_suggestions`
-Get blog topic ideas tailored per project, filtered by already-used topics.
-
-```json
-{ "project": "potenlab", "slots": 3, "used_topics": ["GPT-4 review"] }
-```
-
-Project routing:
-- `treesoop`: prioritizes arxiv, reddit_ml, reddit_localllama
-- `potenlab`: prioritizes hackernews, devto, github
-- `hanguljobs`: prioritizes programming, general tech
-
-### `check_cache`
-Inspect current cache state.
-
-```json
-{}
-```
-
-## Test
-
-```bash
-# List tools
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
-
-# Check cache
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"check_cache","arguments":{}}}' | node dist/index.js
-```
-
-## Cache
-
-Files written to `cache/news_YYYY-MM-DD_HH.json` (one per UTC hour). The `cache/` directory is gitignored. All 11 sources are fetched in parallel via `Promise.allSettled()` — a failing source is logged and skipped without blocking others. Each source has a 10-second timeout.
-
-## MCP Config (Claude Desktop / claude_desktop_config.json)
-
+Or run locally as stdio MCP:
 ```json
 {
   "mcpServers": {
-    "ai-news-mcp": {
+    "ai-news": {
       "command": "node",
-      "args": ["/absolute/path/to/ai-news-mcp/dist/index.js"]
+      "args": ["/path/to/ai-news-mcp/dist/index.js"]
     }
   }
 }
