@@ -86,15 +86,28 @@ source: "huggingface" — AI/ML papers curated daily by the HF community.
 ```bash
 curl -s "https://thenewstack.io/category/ai/feed/" > /tmp/thenewstack.xml
 ```
-Parse with: extract `<title>` and `<link>` tags. Skip the first item (feed title).
-source: "thenewstack" — in-depth AI engineering articles (Claude Code, LLMs, AI infra).
+Parse: extract `<title>` and `<link>` tags, skip first (feed title). source: "thenewstack"
 
-### 3-9. Harness Engineering Blog (use Bash curl — RSS)
+### 3-9. OpenAI News (use Bash curl — RSS)
 ```bash
-curl -s "https://www.harness.io/blog/rss.xml" > /tmp/harness.xml
+curl -s "https://openai.com/news/rss.xml" > /tmp/openai_news.xml
 ```
-Parse with: extract `<title>` and `<link>` tags (first 10 items). Skip the feed title item.
-source: "harness" — CI/CD, DevOps, AI-driven software delivery.
+Parse: extract `<title>` (CDATA), `<link>`, `<description>` tags (first 15 items).
+source: "openai" — official OpenAI announcements (Codex, Harness Engineering, model releases, agent features).
+
+### 3-10. InfoQ AI & ML (use Bash curl — RSS)
+```bash
+curl -s "https://feed.infoq.com/ai-ml-data-eng" > /tmp/infoq_ai.xml
+```
+Parse: extract `<title>` and `<link>` tags (first 10 items). Skip feed title.
+source: "infoq" — deep technical coverage of AI native engineering, agentic patterns, LLM evaluation.
+
+### 3-11. Martin Fowler's Blog (use Bash curl — Atom RSS)
+```bash
+curl -s "https://martinfowler.com/feed.atom" > /tmp/martinfowler.xml
+```
+Parse: extract `<title>` and `<link href=...>` tags (first 8 items). Skip feed title.
+source: "martinfowler" — Harness Engineering, AI architecture patterns, software design with AI.
 
 If any source fails, skip it and continue.
 

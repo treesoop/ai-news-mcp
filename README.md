@@ -2,7 +2,7 @@
 
 Real-time AI/tech news aggregator MCP server — deployed on Supabase Edge Functions, **free to use, no auth required**.
 
-Sources: HackerNews, Reddit (ML/LocalLLaMA/artificial/programming/ClaudeAI), ArXiv (cs.AI + cs.LG), GitHub Trending, Dev.to, Lobsters, GeekNews, HuggingFace Daily Papers, The New Stack AI, Harness Engineering. Cache updated every 6 hours.
+Sources: HackerNews, Reddit (ML/LocalLLaMA/artificial/programming/ClaudeAI), ArXiv (cs.AI + cs.LG), GitHub Trending, Dev.to, Lobsters, GeekNews, HuggingFace Daily Papers, The New Stack AI, OpenAI News, InfoQ AI, Martin Fowler. Cache updated every 6 hours.
 
 ## Quick Start (No install, no login)
 
@@ -99,7 +99,9 @@ We aggregate **publicly available** content from the following sources. No authe
 | r/ClaudeAI | `https://www.reddit.com/r/ClaudeAI/hot.json` | Public Reddit API | Title, URL, score (no user data) |
 | HuggingFace Daily Papers | `https://huggingface.co/api/daily_papers` | Public JSON API | Title, paper URL, upvotes |
 | The New Stack AI | `https://thenewstack.io/category/ai/feed/` | Public RSS feed | Title, URL |
-| Harness Engineering | `https://www.harness.io/blog/rss.xml` | Public RSS feed | Title, URL |
+| OpenAI News | `https://openai.com/news/rss.xml` | Public RSS feed | Title, URL, description (Codex, agents, model releases) |
+| InfoQ AI & ML | `https://feed.infoq.com/ai-ml-data-eng` | Public RSS feed | Title, URL (AI native engineering, agentic patterns) |
+| Martin Fowler | `https://martinfowler.com/feed.atom` | Public Atom feed | Title, URL (Harness Engineering, AI architecture) |
 
 ### What we store
 
