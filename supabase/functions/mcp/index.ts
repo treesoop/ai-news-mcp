@@ -194,6 +194,101 @@ async function toolCheckCache() {
   return { exists: true, cached_at: cache.created_at, age_minutes: ageMinutes, total: cache.items.length, source_counts: counts };
 }
 
+// ── MCP Prompts ───────────────────────────────────────────────────────────────
+
+const PROMPTS = [
+  {
+    name: "daily_briefing",
+    description: "Generate a morning AI/tech news briefing from today's top stories",
+    arguments: [
+      { name: "focus", description: "Optional topic focus (e.g. 'LLM', 'agents', 'open source')", required: false }
+    ],
+  },
+  {
+    name: "trending_summary",
+    description: "Summarize what's trending right now across all sources and explain why it matters",
+    arguments: [],
+  },
+  {
+    name: "research_topic",
+    description: "Deep dive into a specific AI/tech topic using today's news, papers, and repos",
+    arguments: [
+      { name: "topic", description: "Topic to research (e.g. 'RAG', 'Claude Code', 'AI agents')", required: true }
+    ],
+  },
+];
+
+function getPromptMessages(name: string, args: Record<string, string>) {
+  if (name === "daily_briefing") {
+    const focus = args.focus ? ` Focus specifically on: ${args.focus}.` : "";
+    return [{ role: "user", content: { type: "text", text: `Use the get_top_picks tool (n=20) to fetch today's top AI/tech news, then write a concise morning briefing. Include: top 5 stories with 1-sentence summaries, 1 standout GitHub repo or paper if present, and a 2-sentence "what to watch" outlook.${focus}` } }];
+  }
+  if (name === "trending_summary") {
+    return [{ role: "user", content: { type: "text", text: "Use check_cache to see what sources are available, then use get_top_picks (n=30) to get today's top stories. Group them into 3-4 themes, explain why each theme is trending, and highlight the single most important story of the day." } }];
+  }
+  if (name === "research_topic") {
+    const topic = args.topic ?? "AI";
+    return [{ role: "user", content: { type: "text", text: `Use search_today with query="${topic}" to find all relevant news. Then for any ArXiv papers found, use get_paper_brief to get full abstracts. For any GitHub repos, use get_repo_quickstart. Compile a structured research summary: what's new, key papers, notable repos, and community reaction.` } }];
+  }
+  throw new Error(`Unknown prompt: ${name}`);
+}
+
+// ── MCP Resources ─────────────────────────────────────────────────────────────
+
+const RESOURCES = [
+  {
+    uri: "news://latest/summary",
+    name: "Latest News Summary",
+    description: "A structured summary of the current news cache: total items, sources, cache age",
+    mimeType: "application/json",
+  },
+  {
+    uri: "news://sources",
+    name: "Source Directory",
+    description: "All 17 news sources with their reputation scores and what kind of content they provide",
+    mimeType: "application/json",
+  },
+];
+
+async function readResource(uri: string): Promise<string> {
+  if (uri === "news://latest/summary") {
+    const cache = await getLatestCache();
+    if (!cache) return JSON.stringify({ error: "No cache available" });
+    const ageMinutes = Math.floor((Date.now() - new Date(cache.created_at).getTime()) / 60000);
+    const counts: Record<string, number> = {};
+    for (const item of cache.items) counts[item.source] = (counts[item.source] ?? 0) + 1;
+    return JSON.stringify({ cached_at: cache.created_at, age_minutes: ageMinutes, total: cache.items.length, source_counts: counts }, null, 2);
+  }
+  if (uri === "news://sources") {
+    const sources = Object.entries(SOURCE_SCORES).map(([id, score]) => ({
+      id, score,
+      description: {
+        hackernews: "Top HN stories — engineers and founders sharing links",
+        show_hn: "Show HN posts — developers sharing what they just built",
+        reddit_localllama: "r/LocalLLaMA — most active open-source LLM community",
+        reddit_claudeai: "r/ClaudeAI — Claude Code, AI coding tools, Anthropic news",
+        reddit_ml: "r/MachineLearning — research and ML engineering",
+        reddit_artificial: "r/artificial — general AI discussion",
+        reddit_programming: "r/programming — general dev community",
+        openai: "OpenAI official news — model releases, Codex, agents",
+        huggingface: "HuggingFace Daily Papers — curated AI/ML papers",
+        hf_spaces: "HuggingFace Spaces Trending — hottest AI demos right now",
+        arxiv_ai: "ArXiv cs.AI — AI research papers",
+        arxiv_ml: "ArXiv cs.LG — machine learning research",
+        infoq: "InfoQ AI/ML — deep technical coverage of agentic patterns",
+        thenewstack: "The New Stack — AI infrastructure and cloud engineering",
+        devto: "Dev.to — developer tutorials and AI articles",
+        lobsters: "Lobsters — curated technical link aggregator",
+        github: "GitHub Trending — most starred repos today",
+        producthunt: "Product Hunt — new AI tools launching today",
+        geeknews: "GeekNews — Korean tech community hot links",
+      }[id] ?? "",
+    }));
+    return JSON.stringify(sources, null, 2);
+  }
+  throw new Error(`Unknown resource: ${uri}`);
+}
+
 // ── MCP Protocol ──────────────────────────────────────────────────────────────
 
 const TOOLS = [
@@ -225,7 +320,7 @@ async function handleMcpRequest(body: Record<string, unknown>): Promise<unknown>
   const { method, id, params } = body as { method: string; id: unknown; params?: Record<string, unknown> };
 
   if (method === "initialize") {
-    return { jsonrpc: "2.0", id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "ai-news-mcp", version: "1.0.0" } } };
+    return { jsonrpc: "2.0", id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {}, prompts: {}, resources: {} }, serverInfo: { name: "ai-news-mcp", version: "1.1.0" } } };
   }
   if (method === "tools/list") {
     return { jsonrpc: "2.0", id, result: { tools: TOOLS } };
@@ -238,6 +333,31 @@ async function handleMcpRequest(body: Record<string, unknown>): Promise<unknown>
       return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] } };
     } catch (err) {
       return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify({ error: String(err) }) }], isError: true } };
+    }
+  }
+  if (method === "prompts/list") {
+    return { jsonrpc: "2.0", id, result: { prompts: PROMPTS } };
+  }
+  if (method === "prompts/get") {
+    const name = params?.name as string;
+    const args = (params?.arguments as Record<string, string>) ?? {};
+    try {
+      const messages = getPromptMessages(name, args);
+      return { jsonrpc: "2.0", id, result: { description: PROMPTS.find(p => p.name === name)?.description ?? "", messages } };
+    } catch (err) {
+      return { jsonrpc: "2.0", id, error: { code: -32602, message: String(err) } };
+    }
+  }
+  if (method === "resources/list") {
+    return { jsonrpc: "2.0", id, result: { resources: RESOURCES } };
+  }
+  if (method === "resources/read") {
+    const uri = params?.uri as string;
+    try {
+      const text = await readResource(uri);
+      return { jsonrpc: "2.0", id, result: { contents: [{ uri, mimeType: "application/json", text }] } };
+    } catch (err) {
+      return { jsonrpc: "2.0", id, error: { code: -32602, message: String(err) } };
     }
   }
   if (method === "ping") return { jsonrpc: "2.0", id, result: {} };

@@ -1,5 +1,7 @@
 # ai-news-mcp
 
+[![MCP Badge](https://lobehub.com/badge/mcp-full/treesoop-ai-news-mcp?theme=light)](https://lobehub.com/mcp/treesoop-ai-news-mcp)
+
 > Keeping up with AI trends is exhausting.
 >
 > Claude doesn't know what happened after its training cutoff. Ask it "what's hot in AI right now?" and you get stale answers. Tell it to scrape the web for you and you wait forever.
