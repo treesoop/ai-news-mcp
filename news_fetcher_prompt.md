@@ -102,12 +102,35 @@ curl -s "https://feed.infoq.com/ai-ml-data-eng" > /tmp/infoq_ai.xml
 Parse: extract `<title>` and `<link>` tags (first 10 items). Skip feed title.
 source: "infoq" — deep technical coverage of AI native engineering, agentic patterns, LLM evaluation.
 
-### 3-11. Martin Fowler's Blog (use Bash curl — Atom RSS)
+### 3-11. Product Hunt (use Bash curl — RSS)
 ```bash
-curl -s "https://martinfowler.com/feed.atom" > /tmp/martinfowler.xml
+curl -s "https://www.producthunt.com/feed" > /tmp/producthunt.xml
 ```
-Parse: extract `<title>` and `<link href=...>` tags (first 8 items). Skip feed title.
-source: "martinfowler" — Harness Engineering, AI architecture patterns, software design with AI.
+Parse: extract `<title>` and `<link>` tags (first 20 items). Skip feed title.
+source: "producthunt" — hottest new AI tools launching TODAY.
+
+### 3-12. Hacker News "Show HN" (use Bash curl — Algolia API)
+This is where engineers actually share what they built. Real-time signal.
+```bash
+YESTERDAY=$(date -v-24H +%s 2>/dev/null || date -d '24 hours ago' +%s)
+curl -s "https://hn.algolia.com/api/v1/search?tags=show_hn&numericFilters=created_at_i%3E${YESTERDAY}&hitsPerPage=20" > /tmp/show_hn.json
+```
+Parse with jq:
+```bash
+jq '[.hits[] | {title, url, score: .points, source: "show_hn"}] | sort_by(.score) | reverse' /tmp/show_hn.json
+```
+source: "show_hn" — developers sharing what they JUST built. Harness engineering, AI agents, Claude Code tools, evals. This is where OpenHarness, AI coding dashboards, agent tools first appear.
+
+### 3-13. Hugging Face Spaces Trending (use Bash curl)
+AI demos people are actually trying right now — separate from papers.
+```bash
+curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15" > /tmp/hf_spaces.json
+```
+Parse with jq:
+```bash
+jq '[.[] | {title: .id, url: ("https://huggingface.co/spaces/" + .id), score: .trendingScore, source: "hf_spaces"}]' /tmp/hf_spaces.json
+```
+source: "hf_spaces" — hottest AI demos and tools engineers are sharing and trying right now.
 
 If any source fails, skip it and continue.
 

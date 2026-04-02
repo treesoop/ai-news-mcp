@@ -2,7 +2,7 @@
 
 Real-time AI/tech news aggregator MCP server — deployed on Supabase Edge Functions, **free to use, no auth required**.
 
-Sources: HackerNews, Reddit (ML/LocalLLaMA/artificial/programming/ClaudeAI), ArXiv (cs.AI + cs.LG), GitHub Trending, Dev.to, Lobsters, GeekNews, HuggingFace Daily Papers, The New Stack AI, OpenAI News, InfoQ AI, Martin Fowler. Cache updated every 6 hours.
+Sources: HackerNews, **Show HN** (Algolia), Reddit (ML/LocalLLaMA/artificial/programming/ClaudeAI), ArXiv (cs.AI + cs.LG), GitHub Trending, **HuggingFace Spaces Trending**, HuggingFace Daily Papers, Dev.to, Lobsters, GeekNews, Product Hunt, OpenAI News, InfoQ AI, The New Stack AI. Cache updated every 6 hours.
 
 ## Quick Start (No install, no login)
 
@@ -98,10 +98,12 @@ We aggregate **publicly available** content from the following sources. No authe
 | GeekNews | `https://news.hada.io` | HTML scrape | Title, URL, score |
 | r/ClaudeAI | `https://www.reddit.com/r/ClaudeAI/hot.json` | Public Reddit API | Title, URL, score (no user data) |
 | HuggingFace Daily Papers | `https://huggingface.co/api/daily_papers` | Public JSON API | Title, paper URL, upvotes |
+| HuggingFace Spaces Trending | `https://huggingface.co/api/spaces?sort=trendingScore` | Public JSON API | Space ID, trendingScore — demos engineers are sharing now |
+| Show HN (24h) | `https://hn.algolia.com/api/v1/search?tags=show_hn` | Public Algolia API | Title, URL, points — what devs just shipped (harness tools, agents, evals) |
+| Product Hunt | `https://www.producthunt.com/feed` | Public RSS feed | Title, URL — hottest AI tools launching today |
+| OpenAI News | `https://openai.com/news/rss.xml` | Public RSS feed | Title, URL, description |
+| InfoQ AI & ML | `https://feed.infoq.com/ai-ml-data-eng` | Public RSS feed | Title, URL |
 | The New Stack AI | `https://thenewstack.io/category/ai/feed/` | Public RSS feed | Title, URL |
-| OpenAI News | `https://openai.com/news/rss.xml` | Public RSS feed | Title, URL, description (Codex, agents, model releases) |
-| InfoQ AI & ML | `https://feed.infoq.com/ai-ml-data-eng` | Public RSS feed | Title, URL (AI native engineering, agentic patterns) |
-| Martin Fowler | `https://martinfowler.com/feed.atom` | Public Atom feed | Title, URL (Harness Engineering, AI architecture) |
 
 ### What we store
 
