@@ -1,43 +1,30 @@
 # ai-news-mcp
 
-> AI 트렌드 따라가기 힘드셨죠?
+> Keeping up with AI trends is exhausting.
 >
-> Claude는 학습 시점 이후의 뉴스를 모릅니다. "요즘 핫한 AI 툴 뭐야?" 물어봐도 오래된 얘기만 하고, 직접 스크래핑 시키면 또 한참 기다려야 하죠.
+> Claude doesn't know what happened after its training cutoff. Ask it "what's hot in AI right now?" and you get stale answers. Tell it to scrape the web for you and you wait forever.
 >
-> **저희가 6시간마다 17개 소스를 긁어서 DB에 넣어두고 있습니다. MCP로 연결하면 Claude가 바로 꺼내 씁니다.**
+> **We scrape 17 sources every 6 hours and store everything in a database. Connect via MCP and Claude pulls fresh data instantly.**
 
-실시간 AI/기술 뉴스 집계 MCP 서버 — Supabase Edge Function 위에서 동작, **무료, 인증 불필요**.
+Real-time AI/tech news aggregator MCP server — runs on Supabase Edge Functions, **free, no auth required**.
 
 Sources: HackerNews · **Show HN** · Reddit (ML/LocalLLaMA/ClaudeAI/artificial/programming) · ArXiv (cs.AI + cs.LG) · GitHub Trending · **HuggingFace Spaces Trending** · HuggingFace Daily Papers · Dev.to · Lobsters · GeekNews · Product Hunt · OpenAI News · InfoQ AI · The New Stack AI
 
-캐시는 6시간마다 갱신됩니다.
+Cache updated every 6 hours.
 
 ---
 
-## Quick Start (설치 없음, 로그인 없음)
+## Quick Start — no install, no login
 
-### Claude Code CLI — 명령어 한 줄
+### Claude Code CLI (one command)
 
 ```bash
 claude mcp add --transport http ai-news https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp
 ```
 
-한 번만 실행하면 이후 모든 Claude Code 세션에서 바로 사용 가능합니다.
+Run this once. The tools are available in every Claude Code session from that point on.
 
-### 수동 설정 — Claude Code (`~/.claude.json`)
-
-```json
-{
-  "mcpServers": {
-    "ai-news": {
-      "type": "http",
-      "url": "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp"
-    }
-  }
-}
-```
-
-### 수동 설정 — Claude Desktop (`claude_desktop_config.json`)
+### Manual config — Claude Code (`~/.claude.json`)
 
 ```json
 {
@@ -50,7 +37,20 @@ claude mcp add --transport http ai-news https://iiwkkrvyhktnwolsfndx.supabase.co
 }
 ```
 
-### 다른 MCP 클라이언트 (HTTP transport)
+### Manual config — Claude Desktop (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "ai-news": {
+      "type": "http",
+      "url": "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp"
+    }
+  }
+}
+```
+
+### Any MCP client (HTTP transport)
 
 ```
 https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp
@@ -58,43 +58,43 @@ https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp
 
 ---
 
-## 어떤 문제를 해결하나요?
+## What problem does this solve?
 
-| 문제 | ai-news-mcp |
+| Problem | ai-news-mcp |
 |---|---|
-| Claude가 최신 AI 뉴스를 모른다 | 6시간마다 17개 소스 수집, 항상 최신 |
-| 스크래핑을 직접 시키면 느리다 | 미리 DB에 저장, MCP 호출 즉시 응답 |
-| 어느 커뮤니티가 지금 핫한지 모른다 | Show HN, r/LocalLLaMA, HF Spaces 등 실시간 커뮤니티 반응 포함 |
-| 논문/레포 파악에 시간이 걸린다 | ArXiv 초록 요약, GitHub README 퀵스타트 원클릭 |
+| Claude has no knowledge of recent AI news | 17 sources scraped every 6h, always current |
+| Asking Claude to scrape is slow | Pre-cached in DB, MCP call returns instantly |
+| Hard to know which community is blowing up right now | Show HN, r/LocalLLaMA, HF Spaces — real-time community signal included |
+| Reading papers and repos takes time | ArXiv abstracts and GitHub README quickstarts on demand |
 
 ---
 
 ## Tools
 
-| Tool | 설명 |
+| Tool | Description |
 |---|---|
-| `get_trending_news` | 17개 소스 전체 뉴스. `source` 파라미터로 특정 소스 필터링 가능 |
-| `get_top_picks` | 소스 신뢰도 + 커뮤니티 점수로 랭킹한 상위 N개. 관련성은 에이전트가 판단 |
-| `search_today` | 오늘 수집된 뉴스에서 키워드 검색 |
-| `get_new_since` | 특정 시각 이후에 추가된 뉴스 (ISO 타임스탬프) |
-| `get_repo_quickstart` | GitHub 레포 메타데이터 + 설치 명령어 + README 퀵스타트 |
-| `get_paper_brief` | ArXiv 논문 제목/저자/초록 + 코드 레포 링크 |
-| `check_cache` | 캐시 상태 확인: 마지막 업데이트 시각, 소스별 아이템 수 |
+| `get_trending_news` | All cached news from 17 sources. Filter by `source` name (e.g. `show_hn`, `reddit_localllama`) |
+| `get_top_picks` | Top N items ranked by source reputation + community score. The calling agent decides what's relevant |
+| `search_today` | Keyword search across today's cached titles and summaries |
+| `get_new_since` | Items added after a given ISO timestamp — useful for "what's new in the last hour?" |
+| `get_repo_quickstart` | GitHub repo metadata (stars, language, topics) + install commands + quickstart from README |
+| `get_paper_brief` | ArXiv paper title, authors, abstract, and code repo link if available |
+| `check_cache` | Cache status: last updated, total items, per-source breakdown |
 
-### 예제 호출
+### Example calls
 
 ```bash
-# 상위 뉴스 5개
+# Top 5 items right now
 curl -s -X POST "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_top_picks","arguments":{"n":5}}}'
 
-# RAG 관련 뉴스 검색
+# Search for agent-related news
 curl -s -X POST "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_today","arguments":{"query":"RAG"}}}'
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_today","arguments":{"query":"agent"}}}'
 
-# Show HN 최신 빌드만 보기
+# Show HN only — what devs just shipped
 curl -s -X POST "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_trending_news","arguments":{"source":"show_hn"}}}'
@@ -102,52 +102,50 @@ curl -s -X POST "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp" \
 
 ---
 
-## 데이터 출처 & 투명성
+## Data Sources & Transparency
 
-공개된 피드/API/페이지만 수집합니다. 인증 불필요, 개인정보 없음.
+We only collect publicly available content — no auth, no private data, no personal information.
 
-| 소스 | URL | 방식 | 수집 항목 |
+| Source | URL | Method | Data collected |
 |---|---|---|---|
-| HackerNews | `https://hacker-news.firebaseio.com/v0/topstories.json` | Public JSON API | 제목, URL, 점수 |
-| Show HN (24h) | `https://hn.algolia.com/api/v1/search?tags=show_hn` | Algolia API | 제목, URL, 점수 — 개발자들이 방금 만든 것 |
-| r/MachineLearning | `https://www.reddit.com/r/MachineLearning/hot.json` | Public Reddit API | 제목, URL, 점수 (유저 정보 없음) |
-| r/LocalLLaMA | `https://www.reddit.com/r/LocalLLaMA/hot.json` | Public Reddit API | 제목, URL, 점수 |
-| r/ClaudeAI | `https://www.reddit.com/r/ClaudeAI/hot.json` | Public Reddit API | 제목, URL, 점수 |
-| r/artificial | `https://www.reddit.com/r/artificial/hot.json` | Public Reddit API | 제목, URL, 점수 |
-| r/programming | `https://www.reddit.com/r/programming/hot.json` | Public Reddit API | 제목, URL, 점수 |
-| ArXiv cs.AI | `https://rss.arxiv.org/rss/cs.AI` | Public RSS | 제목, 초록, 저자, URL |
-| ArXiv cs.LG | `https://rss.arxiv.org/rss/cs.LG` | Public RSS | 제목, 초록, 저자, URL |
-| GitHub Trending | `https://github.com/trending` | HTML 스크래핑 | 레포명, 설명, 스타 수 |
-| HuggingFace Daily Papers | `https://huggingface.co/api/daily_papers` | Public JSON API | 제목, URL, 업보트 수 |
-| HuggingFace Spaces Trending | `https://huggingface.co/api/spaces?sort=trendingScore` | Public JSON API | Space ID, 트렌딩 점수 |
-| Dev.to | `https://dev.to/api/articles?tag=ai` | Public JSON API | 제목, URL, 반응 수 |
-| Lobsters | `https://lobste.rs/hottest.json` | Public JSON API | 제목, URL, 점수 |
-| GeekNews | `https://news.hada.io` | HTML 스크래핑 | 제목, URL, 점수 |
-| OpenAI News | `https://openai.com/news/rss.xml` | Public RSS | 제목, URL |
-| InfoQ AI & ML | `https://feed.infoq.com/ai-ml-data-eng` | Public RSS | 제목, URL |
-| The New Stack AI | `https://thenewstack.io/category/ai/feed/` | Public RSS | 제목, URL |
+| HackerNews | `https://hacker-news.firebaseio.com/v0/topstories.json` | Public JSON API | Title, URL, score |
+| Show HN (24h) | `https://hn.algolia.com/api/v1/search?tags=show_hn` | Algolia API | Title, URL, score — what devs just built |
+| r/MachineLearning | `https://www.reddit.com/r/MachineLearning/hot.json` | Public Reddit API | Title, URL, score (no user data) |
+| r/LocalLLaMA | `https://www.reddit.com/r/LocalLLaMA/hot.json` | Public Reddit API | Title, URL, score |
+| r/ClaudeAI | `https://www.reddit.com/r/ClaudeAI/hot.json` | Public Reddit API | Title, URL, score |
+| r/artificial | `https://www.reddit.com/r/artificial/hot.json` | Public Reddit API | Title, URL, score |
+| r/programming | `https://www.reddit.com/r/programming/hot.json` | Public Reddit API | Title, URL, score |
+| ArXiv cs.AI | `https://rss.arxiv.org/rss/cs.AI` | Public RSS | Title, abstract, authors, URL |
+| ArXiv cs.LG | `https://rss.arxiv.org/rss/cs.LG` | Public RSS | Title, abstract, authors, URL |
+| GitHub Trending | `https://github.com/trending` | HTML scrape | Repo name, description, stars |
+| HuggingFace Daily Papers | `https://huggingface.co/api/daily_papers` | Public JSON API | Title, URL, upvotes |
+| HuggingFace Spaces Trending | `https://huggingface.co/api/spaces?sort=trendingScore` | Public JSON API | Space ID, trending score |
+| Dev.to | `https://dev.to/api/articles?tag=ai` | Public JSON API | Title, URL, reactions |
+| Lobsters | `https://lobste.rs/hottest.json` | Public JSON API | Title, URL, score |
+| GeekNews | `https://news.hada.io` | HTML scrape | Title, URL, score |
+| OpenAI News | `https://openai.com/news/rss.xml` | Public RSS | Title, URL |
+| InfoQ AI & ML | `https://feed.infoq.com/ai-ml-data-eng` | Public RSS | Title, URL |
+| The New Stack AI | `https://thenewstack.io/category/ai/feed/` | Public RSS | Title, URL |
 
-### 저장하는 것
+### What we store
 
-- 위 공개 데이터의 캐시 스냅샷 (6시간마다 갱신)
-- Supabase `news_cache` 테이블에 저장, 48시간 후 자동 삭제
-- 유저 데이터, 개인정보, 비공개 콘텐츠 없음
+- Cached snapshots of the above public data, refreshed every 6 hours
+- Stored in Supabase (`news_cache` table), auto-deleted after 48 hours
+- No user data, no personal information, no private content
 
-### 저장하지 않는 것
+### What we don't do
 
-- 유료/로그인 필요 콘텐츠 없음
-- 기사 본문 없음 — 제목, URL, 점수, 요약만
-- 데이터 판매 또는 공유 없음
+- No paywalled or login-required content
+- No full article bodies — title, URL, score, and summary only
+- No selling or sharing of data
 
 ---
 
-## 셀프 호스팅
-
-직접 운영하고 싶다면:
+## Self-hosting
 
 ```bash
 git clone https://github.com/treesoop/ai-news-mcp
 cd ai-news-mcp
 ```
 
-`supabase/functions/mcp/` 의 Edge Function을 본인 Supabase 프로젝트에 배포하고, `news_fetcher_prompt.md` 를 Claude Code 크론잡으로 연결하면 됩니다.
+Deploy the Edge Function in `supabase/functions/mcp/` to your own Supabase project. Use `news_fetcher_prompt.md` as a Claude Code cron job to populate the cache.
