@@ -79,21 +79,35 @@ curl -s -X POST "https://iiwkkrvyhktnwolsfndx.supabase.co/functions/v1/mcp" \
 
 ---
 
-## Sources
+## Data Sources & Transparency
 
-| Source | Type | Category |
-|---|---|---|
-| HackerNews | JSON API | dev-tools, AI |
-| Dev.to | JSON API | dev-tools, AI |
-| Lobsters | JSON API | dev-tools |
-| r/MachineLearning | Reddit API | AI |
-| r/LocalLLaMA | Reddit API | AI |
-| r/artificial | Reddit API | AI, community |
-| r/programming | Reddit API | dev-tools, community |
-| ArXiv cs.AI | RSS | AI |
-| ArXiv cs.LG | RSS | AI |
-| GitHub Trending | HTML scrape | dev-tools |
-| GeekNews | HTML scrape | community, dev-tools |
+We aggregate **publicly available** content from the following sources. No authentication, no private data — only public feeds, APIs, and pages.
+
+| Source | URL | Method | Data collected |
+|---|---|---|---|
+| HackerNews | `https://hacker-news.firebaseio.com/v0/topstories.json` | Public JSON API | Title, URL, score, author, comment count |
+| Dev.to | `https://dev.to/api/articles?tag=ai` | Public JSON API | Title, URL, tags, reactions, reading time |
+| Lobsters | `https://lobste.rs/hottest.json` | Public JSON API | Title, URL, score, tags |
+| r/MachineLearning | `https://www.reddit.com/r/MachineLearning/hot.json` | Public Reddit API | Title, URL, score, flair (no user data) |
+| r/LocalLLaMA | `https://www.reddit.com/r/LocalLLaMA/hot.json` | Public Reddit API | Title, URL, score, flair (no user data) |
+| r/artificial | `https://www.reddit.com/r/artificial/hot.json` | Public Reddit API | Title, URL, score, flair (no user data) |
+| r/programming | `https://www.reddit.com/r/programming/hot.json` | Public Reddit API | Title, URL, score, flair (no user data) |
+| ArXiv cs.AI | `https://rss.arxiv.org/rss/cs.AI` | Public RSS feed | Title, abstract, authors, paper URL |
+| ArXiv cs.LG | `https://rss.arxiv.org/rss/cs.LG` | Public RSS feed | Title, abstract, authors, paper URL |
+| GitHub Trending | `https://github.com/trending` | HTML scrape | Repo name, description, stars, language |
+| GeekNews | `https://news.hada.io` | HTML scrape | Title, URL, score |
+
+### What we store
+
+- Cached snapshots of the above public data, refreshed every 6 hours
+- Stored in Supabase (`news_cache` table), retained for 48 hours then purged
+- No user data, no personal information, no private content collected
+
+### What we don't do
+
+- We do not scrape paywalled or login-required content
+- We do not store full article bodies — only titles, URLs, scores, and summaries
+- We do not sell or share this data; it's purely for AI assistant context
 
 ---
 
