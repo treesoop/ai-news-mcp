@@ -2,7 +2,7 @@
 
 Real-time AI/tech news aggregator MCP server — deployed on Supabase Edge Functions, **free to use, no auth required**.
 
-Sources: HackerNews, Reddit (ML/LocalLLaMA/artificial/programming), ArXiv (cs.AI + cs.LG), GitHub Trending, Dev.to, Lobsters, GeekNews. Cache updated every 6 hours.
+Sources: HackerNews, Reddit (ML/LocalLLaMA/artificial/programming/ClaudeAI), ArXiv (cs.AI + cs.LG), GitHub Trending, Dev.to, Lobsters, GeekNews, HuggingFace Daily Papers, The New Stack AI, Harness Engineering. Cache updated every 6 hours.
 
 ## Quick Start (No install, no login)
 
@@ -96,6 +96,10 @@ We aggregate **publicly available** content from the following sources. No authe
 | ArXiv cs.LG | `https://rss.arxiv.org/rss/cs.LG` | Public RSS feed | Title, abstract, authors, paper URL |
 | GitHub Trending | `https://github.com/trending` | HTML scrape | Repo name, description, stars, language |
 | GeekNews | `https://news.hada.io` | HTML scrape | Title, URL, score |
+| r/ClaudeAI | `https://www.reddit.com/r/ClaudeAI/hot.json` | Public Reddit API | Title, URL, score (no user data) |
+| HuggingFace Daily Papers | `https://huggingface.co/api/daily_papers` | Public JSON API | Title, paper URL, upvotes |
+| The New Stack AI | `https://thenewstack.io/category/ai/feed/` | Public RSS feed | Title, URL |
+| Harness Engineering | `https://www.harness.io/blog/rss.xml` | Public RSS feed | Title, URL |
 
 ### What we store
 

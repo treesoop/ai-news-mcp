@@ -47,12 +47,13 @@ curl -s "https://www.reddit.com/r/MachineLearning/hot.json?limit=15" -H "User-Ag
 curl -s "https://www.reddit.com/r/LocalLLaMA/hot.json?limit=15"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_localllama.json
 curl -s "https://www.reddit.com/r/artificial/hot.json?limit=10"       -H "User-Agent: $REDDIT_UA" > /tmp/reddit_artificial.json
 curl -s "https://www.reddit.com/r/programming/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_programming.json
+curl -s "https://www.reddit.com/r/ClaudeAI/hot.json?limit=15"         -H "User-Agent: $REDDIT_UA" > /tmp/reddit_claudeai.json
 ```
 Parse each file with jq:
 ```bash
 jq '[.data.children[].data | {title, score, url: (if .is_self then ("https://reddit.com" + .permalink) else .url end)}]' /tmp/reddit_ml.json
 ```
-source values: "reddit_ml", "reddit_localllama", "reddit_artificial", "reddit_programming"
+source values: "reddit_ml", "reddit_localllama", "reddit_artificial", "reddit_programming", "reddit_claudeai"
 
 ### 3-3. ArXiv RSS
 - `https://rss.arxiv.org/rss/cs.AI` → source: "arxiv_ai"
@@ -80,6 +81,20 @@ Parse with jq:
 jq '[.[] | {title: .paper.title, url: ("https://huggingface.co/papers/" + .paper.id), score: .paper.upvotes, source: "huggingface"}]' /tmp/hf_papers.json
 ```
 source: "huggingface" — AI/ML papers curated daily by the HF community.
+
+### 3-8. The New Stack AI (use Bash curl — RSS)
+```bash
+curl -s "https://thenewstack.io/category/ai/feed/" > /tmp/thenewstack.xml
+```
+Parse with: extract `<title>` and `<link>` tags. Skip the first item (feed title).
+source: "thenewstack" — in-depth AI engineering articles (Claude Code, LLMs, AI infra).
+
+### 3-9. Harness Engineering Blog (use Bash curl — RSS)
+```bash
+curl -s "https://www.harness.io/blog/rss.xml" > /tmp/harness.xml
+```
+Parse with: extract `<title>` and `<link>` tags (first 10 items). Skip the feed title item.
+source: "harness" — CI/CD, DevOps, AI-driven software delivery.
 
 If any source fails, skip it and continue.
 
