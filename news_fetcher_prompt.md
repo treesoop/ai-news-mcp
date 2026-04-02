@@ -39,12 +39,20 @@ Use WebFetch to fetch from each source. Collect as many items as possible.
 2. For each ID fetch: `https://hacker-news.firebaseio.com/v0/item/{id}.json`
 3. Keep: title, url, score. source = "hackernews"
 
-### 3-2. Reddit (use WebFetch with Accept: application/json)
-- `https://www.reddit.com/r/MachineLearning/hot.json?limit=15` → source: "reddit_ml"
-- `https://www.reddit.com/r/LocalLLaMA/hot.json?limit=15` → source: "reddit_localllama"
-- `https://www.reddit.com/r/artificial/hot.json?limit=10` → source: "reddit_artificial"
-- `https://www.reddit.com/r/programming/hot.json?limit=10` → source: "reddit_programming"
-- Extract: title, url (use permalink for self posts), score
+### 3-2. Reddit (use Bash curl — WebFetch is blocked by Reddit)
+```bash
+REDDIT_UA="ai-news-mcp/1.0 (public news aggregator; contact: official@treesoop.com)"
+
+curl -s "https://www.reddit.com/r/MachineLearning/hot.json?limit=15" -H "User-Agent: $REDDIT_UA" > /tmp/reddit_ml.json
+curl -s "https://www.reddit.com/r/LocalLLaMA/hot.json?limit=15"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_localllama.json
+curl -s "https://www.reddit.com/r/artificial/hot.json?limit=10"       -H "User-Agent: $REDDIT_UA" > /tmp/reddit_artificial.json
+curl -s "https://www.reddit.com/r/programming/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_programming.json
+```
+Parse each file with jq:
+```bash
+jq '[.data.children[].data | {title, score, url: (if .is_self then ("https://reddit.com" + .permalink) else .url end)}]' /tmp/reddit_ml.json
+```
+source values: "reddit_ml", "reddit_localllama", "reddit_artificial", "reddit_programming"
 
 ### 3-3. ArXiv RSS
 - `https://rss.arxiv.org/rss/cs.AI` → source: "arxiv_ai"
@@ -62,6 +70,16 @@ Use WebFetch to fetch from each source. Collect as many items as possible.
 ### 3-6. GitHub Trending
 - `https://github.com/trending` → source: "github"
 - Parse HTML: extract repo names, descriptions, star counts
+
+### 3-7. Hugging Face Daily Papers (use Bash curl)
+```bash
+curl -s "https://huggingface.co/api/daily_papers?limit=15" > /tmp/hf_papers.json
+```
+Parse with jq:
+```bash
+jq '[.[] | {title: .paper.title, url: ("https://huggingface.co/papers/" + .paper.id), score: .paper.upvotes, source: "huggingface"}]' /tmp/hf_papers.json
+```
+source: "huggingface" — AI/ML papers curated daily by the HF community.
 
 If any source fails, skip it and continue.
 
