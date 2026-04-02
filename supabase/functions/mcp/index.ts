@@ -10,25 +10,31 @@ const TIMEOUT_MS = 10000;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type NewsSource = "hackernews"|"devto"|"lobsters"|"reddit_ml"|"reddit_localllama"|
-  "reddit_artificial"|"reddit_programming"|"arxiv_ai"|"arxiv_ml"|"github"|"geeknews";
-type Category = "AI"|"dev-tools"|"community"|"all";
-
 interface NewsItem {
-  title: string; url: string; source: NewsSource; score: number; summary?: string;
+  title: string; url: string; source: string; score: number; summary?: string;
 }
 
-const SOURCE_CATEGORIES: Record<NewsSource, Category[]> = {
-  hackernews: ["dev-tools","AI"], devto: ["dev-tools","AI"], lobsters: ["dev-tools"],
-  reddit_ml: ["AI"], reddit_localllama: ["AI"],
-  reddit_artificial: ["AI","community"], reddit_programming: ["dev-tools","community"],
-  arxiv_ai: ["AI"], arxiv_ml: ["AI"], github: ["dev-tools"], geeknews: ["community","dev-tools"],
-};
-
-const SOURCE_SCORES: Record<NewsSource, number> = {
-  hackernews: 300, reddit_ml: 250, reddit_localllama: 250, reddit_artificial: 200,
-  reddit_programming: 180, devto: 150, lobsters: 150, github: 120,
-  arxiv_ai: 100, arxiv_ml: 100, geeknews: 80,
+// Source reputation weights — higher = more signal for AI engineers
+const SOURCE_SCORES: Record<string, number> = {
+  hackernews:         300,
+  show_hn:            280,  // builders sharing what they just made
+  reddit_localllama:  260,  // most active AI practitioner community
+  reddit_claudeai:    260,  // Claude Code / AI coding tools
+  reddit_ml:          240,
+  openai:             220,  // official announcements
+  huggingface:        200,  // curated AI papers
+  hf_spaces:          180,  // trending AI demos
+  reddit_artificial:  180,
+  reddit_programming: 160,
+  arxiv_ai:           150,
+  arxiv_ml:           150,
+  infoq:              140,
+  thenewstack:        130,
+  devto:              120,
+  lobsters:           120,
+  github:             110,
+  producthunt:        100,
+  geeknews:            80,
 };
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
@@ -65,36 +71,26 @@ async function getCacheSince(since: string): Promise<NewsItem[]> {
 // ── Tool implementations ──────────────────────────────────────────────────────
 
 async function toolGetTrendingNews(args: Record<string, unknown>) {
-  const category = (args.category as Category) ?? "all";
+  const source = args.source as string | undefined;
   const cache = await getLatestCache();
   if (!cache) return { error: "No cache available. Cron job may not have run yet." };
-  const items = category === "all" ? cache.items
-    : cache.items.filter(i => SOURCE_CATEGORIES[i.source]?.includes(category));
+  const items = source ? cache.items.filter(i => i.source === source) : cache.items;
   const ageMinutes = Math.floor((Date.now() - new Date(cache.created_at).getTime()) / 60000);
   return { cached_at: cache.created_at, age_minutes: ageMinutes, total: items.length, items };
 }
 
 async function toolGetTopPicks(args: Record<string, unknown>) {
-  const n = (args.n as number) ?? 10;
-  const category = (args.category as Category) ?? "all";
+  const n = (args.n as number) ?? 20;
   const cache = await getLatestCache();
   if (!cache) return { error: "No cache available." };
 
-  const items = category === "all" ? cache.items
-    : cache.items.filter(i => SOURCE_CATEGORIES[i.source]?.includes(category));
-
-  const scored = items
-    .map(item => ({ item, score: item.score + (SOURCE_SCORES[item.source] ?? 0) }))
-    .sort((a, b) => b.score - a.score)
+  // Rank by source reputation + item score. Let the calling agent decide relevance.
+  const picks = cache.items
+    .map(item => ({ ...item, combined_score: item.score + (SOURCE_SCORES[item.source] ?? 0) }))
+    .sort((a, b) => b.combined_score - a.combined_score)
     .slice(0, n);
 
-  const picks = scored.map(({ item }) => ({
-    ...item,
-    why: `${item.score > 0 ? `${item.score} points on` : "Featured on"} ${item.source.replace("_", " ")}${item.summary ? ` — ${item.summary.slice(0, 80)}` : ""}`,
-    try_url: item.source === "github" ? item.url : undefined,
-  }));
-
-  return { total: picks.length, picks };
+  return { total: picks.length, cached_at: cache.created_at, picks };
 }
 
 async function toolSearchToday(args: Record<string, unknown>) {
@@ -193,7 +189,7 @@ async function toolCheckCache() {
   const cache = await getLatestCache();
   if (!cache) return { exists: false, cached_at: null, age_minutes: null };
   const ageMinutes = Math.floor((Date.now() - new Date(cache.created_at).getTime()) / 60000);
-  const counts: Partial<Record<NewsSource, number>> = {};
+  const counts: Record<string, number> = {};
   for (const item of cache.items) counts[item.source] = (counts[item.source] ?? 0) + 1;
   return { exists: true, cached_at: cache.created_at, age_minutes: ageMinutes, total: cache.items.length, source_counts: counts };
 }
@@ -201,8 +197,8 @@ async function toolCheckCache() {
 // ── MCP Protocol ──────────────────────────────────────────────────────────────
 
 const TOOLS = [
-  { name: "get_trending_news", description: "Get latest AI/tech news from 11 sources (HN, Reddit ML/LocalLLaMA/artificial/programming, ArXiv AI+ML, GitHub Trending, Dev.to, Lobsters). Cached every 30min.", inputSchema: { type: "object", properties: { category: { type: "string", enum: ["AI","dev-tools","community","all"], default: "all" } }, required: [] } },
-  { name: "get_top_picks", description: "Top N most relevant items for AI engineers, scored by source reputation + item score. Each item includes a 'why it matters' one-liner.", inputSchema: { type: "object", properties: { n: { type: "number", default: 10 }, category: { type: "string", enum: ["AI","dev-tools","community","all"], default: "all" } }, required: [] } },
+  { name: "get_trending_news", description: "Get all cached news items from 17 sources: HN, Show HN, Reddit (ML/LocalLLaMA/ClaudeAI/artificial/programming), ArXiv AI+ML, GitHub Trending, HuggingFace Papers+Spaces, OpenAI News, InfoQ, The New Stack, Dev.to, Lobsters, GeekNews. Cached every 6h. Optionally filter by source name.", inputSchema: { type: "object", properties: { source: { type: "string", description: "Optional: filter by source name e.g. 'reddit_localllama', 'show_hn', 'hackernews'" } }, required: [] } },
+  { name: "get_top_picks", description: "Returns top N items ranked by source reputation + community score. Raw data — YOU decide what's relevant to AI engineering. Includes harness projects, agent tools, LLM releases, Show HN builds.", inputSchema: { type: "object", properties: { n: { type: "number", default: 20 } }, required: [] } },
   { name: "search_today", description: "Search today's cached news by keyword. Matches title + summary.", inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "number", default: 20 } }, required: ["query"] } },
   { name: "get_new_since", description: "Get news items added since an ISO timestamp (e.g. last 30 minutes).", inputSchema: { type: "object", properties: { since: { type: "string", description: "ISO 8601 timestamp" } }, required: ["since"] } },
   { name: "get_repo_quickstart", description: "Get GitHub repo metadata (stars, description, language) + install commands + quickstart snippet from README.", inputSchema: { type: "object", properties: { url: { type: "string", description: "GitHub URL" } }, required: ["url"] } },
