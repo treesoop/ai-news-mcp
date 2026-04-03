@@ -178,6 +178,58 @@ curl -s -X DELETE "${SUPABASE_URL}/rest/v1/news_cache?created_at=lt.${CUTOFF}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
 
+## STEP 6: Curate top 20 AI/ML news
+
+Read all items just saved to news_cache and pick the **top 20** most relevant items for AI/ML engineers.
+
+First, fetch all items from the cache you just saved:
+```bash
+ITEMS=$(curl -s "${SUPABASE_URL}/rest/v1/news_cache?order=created_at.desc&limit=1&select=data" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" | jq -r '.[0].data.items')
+echo "$ITEMS" | jq 'length'
+```
+
+**Selection criteria** (you are the editorial curator):
+- AI/ML directly related: model releases, tools, research, industry news, open source AI projects
+- High community engagement (score) relative to its source
+- Diverse sources: don't pick 10 from HackerNews — spread across Reddit, GitHub, ArXiv, HN, etc.
+- Practical value for AI developers/engineers
+
+**Exclude**:
+- Memes, screenshots (i.redd.it, imgur URLs)
+- GitHub gists
+- Hiring/self-promotion threads
+- Non-AI general news (politics, space, hardware unrelated to AI)
+- Recurring threads (monthly hiring, weekly discussion)
+
+For each selected item, write a 1-line English summary of why it matters.
+
+**Save to news_curated** (delete old entries first, then insert new batch):
+```bash
+# Clear old curated items
+curl -s -X DELETE "${SUPABASE_URL}/rest/v1/news_curated?id=gt.0" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+
+# Insert curated items (build JSON array with jq)
+cat > /tmp/curated.json << 'CURATED_EOF'
+[
+  {"title": "...", "url": "...", "source": "...", "score": 123, "summary": "Why it matters..."},
+  ...
+]
+CURATED_EOF
+
+curl -s -X POST "${SUPABASE_URL}/rest/v1/news_curated" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d @/tmp/curated.json
+```
+
+Print "Curated: N items saved to news_curated."
+
 ## IMPORTANT
 - If a source fails to fetch, skip it (don't crash)
 - Always check cache before fetching (step 2)

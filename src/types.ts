@@ -1,15 +1,22 @@
 export type NewsSource =
   | "hackernews"
+  | "show_hn"
   | "devto"
   | "lobsters"
   | "reddit_ml"
   | "reddit_localllama"
   | "reddit_artificial"
   | "reddit_programming"
+  | "reddit_claudeai"
   | "arxiv_ai"
   | "arxiv_ml"
   | "github"
-  | "geeknews";
+  | "geeknews"
+  | "huggingface"
+  | "hf_spaces"
+  | "openai"
+  | "thenewstack"
+  | "infoq";
 
 export type Category = "AI" | "dev-tools" | "community" | "all";
 

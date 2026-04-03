@@ -13,25 +13,32 @@ import { scrapeGitHubTrending } from "../scrapers/github";
 import { scrapeGeekNews } from "../scrapers/geeknews";
 import { Category, NewsItem, NewsSource, TrendingNewsResult } from "../types";
 
-const SOURCE_CATEGORIES: Record<NewsSource, Category[]> = {
+const SOURCE_CATEGORIES: Partial<Record<NewsSource, Category[]>> = {
   hackernews: ["dev-tools", "AI"],
+  show_hn: ["dev-tools", "AI"],
   devto: ["dev-tools", "AI"],
   lobsters: ["dev-tools"],
   reddit_ml: ["AI"],
   reddit_localllama: ["AI"],
   reddit_artificial: ["AI", "community"],
   reddit_programming: ["dev-tools", "community"],
+  reddit_claudeai: ["AI", "community"],
   arxiv_ai: ["AI"],
   arxiv_ml: ["AI"],
   github: ["dev-tools"],
   geeknews: ["community", "dev-tools"],
+  huggingface: ["AI"],
+  hf_spaces: ["AI"],
+  openai: ["AI"],
+  thenewstack: ["AI", "dev-tools"],
+  infoq: ["AI", "dev-tools"],
 };
 
 function filterByCategory(items: NewsItem[], category: Category): NewsItem[] {
   if (category === "all") return items;
   return items.filter((item) => {
     const cats = SOURCE_CATEGORIES[item.source];
-    return cats.includes(category);
+    return cats ? cats.includes(category) : false;
   });
 }
 

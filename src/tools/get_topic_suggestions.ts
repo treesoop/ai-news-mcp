@@ -48,18 +48,25 @@ function isSimilarToUsed(title: string, usedTopics: string[]): boolean {
 }
 
 function buildReason(item: NewsItem): string {
-  const sourceLabel: Record<NewsSource, string> = {
+  const sourceLabel: Partial<Record<NewsSource, string>> = {
     hackernews: "Hacker News",
+    show_hn: "Show HN",
     devto: "Dev.to",
     lobsters: "Lobsters",
     reddit_ml: "r/MachineLearning",
     reddit_localllama: "r/LocalLLaMA",
     reddit_artificial: "r/artificial",
     reddit_programming: "r/programming",
+    reddit_claudeai: "r/ClaudeAI",
     arxiv_ai: "ArXiv cs.AI",
     arxiv_ml: "ArXiv cs.LG",
     github: "GitHub Trending",
     geeknews: "GeekNews",
+    huggingface: "HuggingFace Papers",
+    hf_spaces: "HF Spaces",
+    openai: "OpenAI",
+    thenewstack: "TheNewStack",
+    infoq: "InfoQ",
   };
 
   const label = sourceLabel[item.source] ?? item.source;
