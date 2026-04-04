@@ -83,12 +83,6 @@ jq '[.[] | {title: .paper.title, url: ("https://huggingface.co/papers/" + .paper
 ```
 source: "huggingface" — AI/ML papers curated daily by the HF community.
 
-### 3-8. The New Stack AI (use Bash curl — RSS)
-```bash
-curl -s "https://thenewstack.io/category/ai/feed/" > /tmp/thenewstack.xml
-```
-Parse: extract `<title>` and `<link>` tags, skip first (feed title). source: "thenewstack"
-
 ### 3-9. OpenAI News (use Bash curl — RSS)
 ```bash
 curl -s "https://openai.com/news/rss.xml" > /tmp/openai_news.xml
