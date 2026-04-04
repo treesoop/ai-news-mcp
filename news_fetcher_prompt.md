@@ -28,7 +28,7 @@ curl -s "${SUPABASE_URL}/rest/v1/news_cache?cache_key=eq.${CACHE_KEY}&select=cac
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
 
-If the response contains data (not `[]`), cache already exists for this hour. Print "Cache hit, skipping." and EXIT.
+If the response contains data (not `[]`), cache already exists for this hour. Print "Cache hit, skipping fetch." and **skip to STEP 6** (curation must always run).
 
 ## STEP 3: Fetch news from all sources
 
@@ -48,12 +48,13 @@ curl -s "https://www.reddit.com/r/LocalLLaMA/hot.json?limit=15"      -H "User-Ag
 curl -s "https://www.reddit.com/r/artificial/hot.json?limit=10"       -H "User-Agent: $REDDIT_UA" > /tmp/reddit_artificial.json
 curl -s "https://www.reddit.com/r/programming/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_programming.json
 curl -s "https://www.reddit.com/r/ClaudeAI/hot.json?limit=15"         -H "User-Agent: $REDDIT_UA" > /tmp/reddit_claudeai.json
+curl -s "https://www.reddit.com/r/vibecoding/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_vibecoding.json
 ```
 Parse each file with jq:
 ```bash
 jq '[.data.children[].data | {title, score, url: (if .is_self then ("https://reddit.com" + .permalink) else .url end)}]' /tmp/reddit_ml.json
 ```
-source values: "reddit_ml", "reddit_localllama", "reddit_artificial", "reddit_programming", "reddit_claudeai"
+source values: "reddit_ml", "reddit_localllama", "reddit_artificial", "reddit_programming", "reddit_claudeai", "reddit_vibecoding"
 
 ### 3-3. ArXiv RSS
 - `https://rss.arxiv.org/rss/cs.AI` → source: "arxiv_ai"
@@ -190,20 +191,47 @@ ITEMS=$(curl -s "${SUPABASE_URL}/rest/v1/news_cache?order=created_at.desc&limit=
 echo "$ITEMS" | jq 'length'
 ```
 
-**Selection criteria** (you are the editorial curator):
-- AI/ML directly related: model releases, tools, research, industry news, open source AI projects
-- High community engagement (score) relative to its source
-- Diverse sources: don't pick 10 from HackerNews — spread across Reddit, GitHub, ArXiv, HN, etc.
-- Practical value for AI developers/engineers
+**타겟 독자: 바이브코더 & AI 자동화 빌더.** Cursor/Claude Code로 코딩하고, MCP 서버 만들고, Ollama 로컬 모델 돌리고, n8n/Make로 자동화하는 사람들. 연구자가 아니다. 보안 전문가가 아니다. **만들고, 자동화하고, 돈 버는 사람들이다.**
 
-**Exclude**:
-- Memes, screenshots (i.redd.it, imgur URLs)
+**20개 구성:**
+
+**커뮤니티 핫토픽 8~10개 (메인):**
+- 각 Reddit 서브 점수 top 3를 먼저 본다 — 이게 오늘 사람들이 진짜 흥분하는 것
+- r/vibecoding, r/ClaudeAI, r/LocalLLaMA가 핵심 소스
+- 프롬프트 hack, 토큰 절약법, 도구 비교, 가격 정책 변화, 바이브코딩 문화
+- HN 500pts+ 토픽
+- i.redd.it 이미지 URL인 경우 → Reddit permalink로 대체
+
+**실용 뉴스 6~8개:**
+- 새 모델 출시 (Gemma, Qwen, GPT, Claude, Llama, Mistral) — 바로 쓸 수 있는 것
+- AI 코딩 도구 (Cursor, Claude Code, Copilot, Codex, Windsurf)
+- 로컬 LLM (llama.cpp, Ollama, vLLM, LM Studio)
+- 자동화 도구 (MCP 서버, AI 에이전트, n8n, Make)
+- 비용 절약, 배포 팁, 워크플로우 개선
+- 업계 동향 (가격 변경, API 업데이트, 인수)
+
+**GitHub 트렌딩 1~2개:**
+- AI 코딩 도구, 자동화 프레임워크, LLM 관련 레포만
+- vim 플러그인, CSS 엔진, 일반 dev tool은 제외
+
+**연구 논문 최대 1개:**
+- 바로 실무에 쓸 수 있는 것만 (추론 최적화, 새 아키텍처)
+- 순수 이론 제외
+
+**Hard exclude:**
 - GitHub gists
-- Hiring/self-promotion threads
-- Non-AI general news (politics, space, hardware unrelated to AI)
-- Recurring threads (monthly hiring, weekly discussion)
+- 채용, 자기홍보, 월간 토론 쓰레드
+- 순수 보안 뉴스 (CVE, 취약점) — 우리 독자는 보안 전문가가 아님
+- 비AI 뉴스 (정치, 우주, 하드웨어)
+- AI 윤리/감정/의식 철학 토론
+- 구독 불만, 사용량 제한 rant
 
-For each selected item, write a 1-line English summary of why it matters.
+**Selection criteria:**
+- 커뮤니티 engagement (점수)가 높은 것 우선
+- 소스 다양성: 한 소스에서 max 3개, 최소 5개 다른 소스
+- "이거 보면 내일 뭔가 만들고 싶어지는가?" — YES면 포함
+
+For each item: 1-line English summary — **what can I DO with this?** Not what it is.
 
 **Save to news_curated** (delete old entries first, then insert new batch):
 ```bash

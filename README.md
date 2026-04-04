@@ -6,11 +6,11 @@
 >
 > Claude doesn't know what happened after its training cutoff. Ask it "what's hot in AI right now?" and you get stale answers. Tell it to scrape the web for you and you wait forever.
 >
-> **We scrape 17 sources every 6 hours and store everything in a database. Connect via MCP and Claude pulls fresh data instantly.**
+> **We scrape 18 sources every 6 hours and store everything in a database. Connect via MCP and Claude pulls fresh data instantly.**
 
 Real-time AI/tech news aggregator MCP server — runs on Supabase Edge Functions, **free, no auth required**.
 
-Sources: HackerNews · **Show HN** · Reddit (ML/LocalLLaMA/ClaudeAI/artificial/programming) · ArXiv (cs.AI + cs.LG) · GitHub Trending · **HuggingFace Spaces Trending** · HuggingFace Daily Papers · Dev.to · Lobsters · GeekNews · Product Hunt · OpenAI News · InfoQ AI · The New Stack AI
+Sources: HackerNews · **Show HN** · Reddit (ML/LocalLLaMA/ClaudeAI/artificial/programming/**vibecoding**) · ArXiv (cs.AI + cs.LG) · GitHub Trending · **HuggingFace Spaces Trending** · HuggingFace Daily Papers · Dev.to · Lobsters · GeekNews · Product Hunt · OpenAI News · InfoQ AI · The New Stack AI
 
 Cache updated every 6 hours.
 
@@ -117,6 +117,7 @@ We only collect publicly available content — no auth, no private data, no pers
 | r/ClaudeAI | `https://www.reddit.com/r/ClaudeAI/hot.json` | Public Reddit API | Title, URL, score |
 | r/artificial | `https://www.reddit.com/r/artificial/hot.json` | Public Reddit API | Title, URL, score |
 | r/programming | `https://www.reddit.com/r/programming/hot.json` | Public Reddit API | Title, URL, score |
+| r/vibecoding | `https://www.reddit.com/r/vibecoding/hot.json` | Public Reddit API | Title, URL, score |
 | ArXiv cs.AI | `https://rss.arxiv.org/rss/cs.AI` | Public RSS | Title, abstract, authors, URL |
 | ArXiv cs.LG | `https://rss.arxiv.org/rss/cs.LG` | Public RSS | Title, abstract, authors, URL |
 | GitHub Trending | `https://github.com/trending` | HTML scrape | Repo name, description, stars |

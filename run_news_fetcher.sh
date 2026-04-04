@@ -17,7 +17,7 @@ fi
 
 echo "=== News fetch started at $(date) ===" | tee -a "$LOG_FILE"
 
-"$CLAUDE_BIN" --dangerously-skip-permissions -p "$(cat "$SCRIPT_DIR/news_fetcher_prompt.md")" \
+"$CLAUDE_BIN" --dangerously-skip-permissions --model claude-opus-4-6 -p "$(cat "$SCRIPT_DIR/news_fetcher_prompt.md")" \
   --allowedTools "Bash,WebFetch,WebSearch" \
   2>&1 | tee -a "$LOG_FILE"
 

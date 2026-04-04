@@ -8,6 +8,7 @@ export type NewsSource =
   | "reddit_artificial"
   | "reddit_programming"
   | "reddit_claudeai"
+  | "reddit_vibecoding"
   | "arxiv_ai"
   | "arxiv_ml"
   | "github"

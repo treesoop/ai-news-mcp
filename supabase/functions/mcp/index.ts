@@ -79,18 +79,54 @@ async function toolGetTrendingNews(args: Record<string, unknown>) {
   return { cached_at: cache.created_at, age_minutes: ageMinutes, total: items.length, items };
 }
 
+async function getCuratedItems(): Promise<NewsItem[] | null> {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/news_curated?select=title,url,source,score,summary&order=id.asc`,
+      { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data) && data.length > 0 ? data : null;
+  } catch { return null; }
+}
+
+function isJunk(item: NewsItem): boolean {
+  const url = item.url.toLowerCase();
+  const title = item.title.toLowerCase();
+  if (url.includes("i.redd.it") || url.includes("i.imgur.com") || url.includes("reddit.com/gallery/") || url.includes("gist.github.com")) return true;
+  if (title.includes("self-promotion") || title.includes("who's hiring") || title.includes("[d] monthly") || title.includes("[d] weekly")) return true;
+  return false;
+}
+
 async function toolGetTopPicks(args: Record<string, unknown>) {
   const n = (args.n as number) ?? 20;
+
+  // Try curated table first (pre-curated by Claude every 6h)
+  const curated = await getCuratedItems();
+  if (curated && curated.length > 0) {
+    return { total: Math.min(curated.length, n), cached_at: new Date().toISOString(), picks: curated.slice(0, n) };
+  }
+
+  // Fallback: source-based diversity + junk filter
   const cache = await getLatestCache();
   if (!cache) return { error: "No cache available." };
 
-  // Rank by source reputation + item score. Let the calling agent decide relevance.
-  const picks = cache.items
-    .map(item => ({ ...item, combined_score: item.score + (SOURCE_SCORES[item.source] ?? 0) }))
-    .sort((a, b) => b.combined_score - a.combined_score)
-    .slice(0, n);
+  const items = cache.items.filter(item => !isJunk(item));
+  const bySource = new Map<string, NewsItem[]>();
+  for (const item of items) {
+    const group = bySource.get(item.source) || [];
+    group.push(item);
+    bySource.set(item.source, group);
+  }
 
-  return { total: picks.length, cached_at: cache.created_at, picks };
+  const pool: NewsItem[] = [];
+  for (const [, group] of bySource) {
+    group.sort((a, b) => b.score - a.score);
+    pool.push(...group.slice(0, 3));
+  }
+
+  return { total: Math.min(pool.length, n), cached_at: cache.created_at, picks: pool.slice(0, n) };
 }
 
 async function toolSearchToday(args: Record<string, unknown>) {
