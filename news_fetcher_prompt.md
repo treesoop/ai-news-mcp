@@ -52,7 +52,7 @@ curl -s "https://www.reddit.com/r/openclaw/hot.json?limit=10"       -H "User-Age
 ```
 Parse each file with jq:
 ```bash
-jq '[.data.children[].data | {title, score, url: (if .is_self then ("https://reddit.com" + .permalink) else .url end)}]' /tmp/reddit_artificial.json
+jq '[.data.children[].data | {title, score, url: (if .is_self then ("https://reddit.com" + .permalink) else .url end), summary: (.selftext[:200] // "")}]' /tmp/reddit_artificial.json
 ```
 source values: "reddit_artificial", "reddit_claudeai", "reddit_vibecoding", "reddit_codex", "reddit_claudecode", "reddit_openclaw"
 
@@ -83,7 +83,27 @@ source: "hf_spaces" — hottest AI demos and tools engineers are sharing and try
 
 If any source fails, skip it and continue.
 
-## STEP 4: Build and save to Supabase
+## STEP 4: Summarize top items from each source
+
+For each source, pick the **top 10 most relevant-looking items** (judge by title + score).
+
+Then for each of those ~100 items, **WebFetch the URL** and write a 1-line summary of the actual content. This summary should answer: "What specifically does this page contain that a vibe coder could use?"
+
+```
+For each item:
+  1. WebFetch the URL
+  2. Read the content
+  3. Write a 1-line summary (max 150 chars) of the ACTUAL content, not just the title
+  4. If WebFetch fails or content is empty/low-quality, set summary to "" (empty)
+```
+
+Add the summary to each item's `summary` field. Items with empty summaries (content was garbage, paywall, or just a meme image) should be deprioritized.
+
+**Skip WebFetch for:**
+- i.redd.it / imgur image URLs (just set summary to "image post")
+- reddit.com/gallery/ URLs (set summary to "image gallery")
+
+## STEP 5: Build and save to Supabase
 
 Combine all items into a single JSON array. Count items per source.
 
@@ -117,7 +137,7 @@ curl -s -X POST "${SUPABASE_URL}/rest/v1/news_cache" \
 
 Verify the response contains `cache_key`. Print "Saved: N items from X sources."
 
-## STEP 5: Clean up old cache (keep last 48 hours only)
+## STEP 6: Clean up old cache (keep last 48 hours only)
 
 ```bash
 CUTOFF=$(date -u -v-48H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '48 hours ago' +%Y-%m-%dT%H:%M:%SZ)

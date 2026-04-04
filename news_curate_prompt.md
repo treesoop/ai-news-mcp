@@ -13,10 +13,12 @@ ITEMS=$(curl -s "${SUPABASE_URL}/rest/v1/news_cache?order=created_at.desc&limit=
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" | jq -r '.[0].data.items')
 echo "$ITEMS" | jq 'length'
-echo "$ITEMS" | jq -r 'group_by(.source) | .[] | "--- \(.[0].source) ---", (.[] | "  \(.title)"), ""'
+echo "$ITEMS" | jq -r 'group_by(.source) | .[] | "--- \(.[0].source) ---", (.[] | "  \(.title)" + (if .summary and .summary != "" then "\n    > \(.summary[:150])" else "" end)), ""'
 ```
 
-Review ALL items grouped by source. **Ignore scores completely — judge only by content.** A GeekNews post about Claude Code hidden features is MORE valuable than a 5000pts Reddit meme.
+Review ALL items grouped by source. Each item has a `summary` field with actual content description from WebFetch. **Judge by summary content, not by title or score.** A GeekNews post with a rich summary about Claude Code features is MORE valuable than a high-score Reddit post with an empty summary.
+
+Items with empty summary = content was garbage or inaccessible → skip them.
 
 ## STEP 2: Select top 20
 
