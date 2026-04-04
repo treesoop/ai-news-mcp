@@ -179,9 +179,9 @@ curl -s -X DELETE "${SUPABASE_URL}/rest/v1/news_cache?created_at=lt.${CUTOFF}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
 
-## STEP 6: Curate top 20 AI/ML news
+## STEP 6: Curate top 20 for vibe coders & AI builders
 
-Read all items just saved to news_cache and pick the **top 20** most relevant items for AI/ML engineers.
+Read all items and pick **top 20 that vibe coders and AI automation builders would actually care about**. NOT for researchers. NOT for security experts. For people who BUILD with AI every day.
 
 First, fetch all items from the cache you just saved:
 ```bash
@@ -221,15 +221,18 @@ echo "$ITEMS" | jq 'length'
 **Hard exclude:**
 - GitHub gists
 - 채용, 자기홍보, 월간 토론 쓰레드
+- show_hn 소스 아이템은 전부 제외 — 진짜 중요한 건 HN이나 GitHub에서 다시 뜸
 - 순수 보안 뉴스 (CVE, 취약점) — 우리 독자는 보안 전문가가 아님
 - 비AI 뉴스 (정치, 우주, 하드웨어)
 - AI 윤리/감정/의식 철학 토론
 - 구독 불만, 사용량 제한 rant
 
-**Selection criteria:**
-- 커뮤니티 engagement (점수)가 높은 것 우선
-- 소스 다양성: 한 소스에서 max 3개, 최소 5개 다른 소스
-- "이거 보면 내일 뭔가 만들고 싶어지는가?" — YES면 포함
+**최종 필터 (각 항목마다 자문):**
+1. "바이브코더가 이거 보고 뭔가 만들거나 바꾸고 싶어지나?" — NO면 제외
+2. "이게 그냥 누군가의 프로덕트 광고 아닌가?" — YES면 제외
+3. "커뮤니티가 진짜 이거 때문에 흥분하고 있나?" — 점수만 높고 실질적 반응 없으면 제외
+
+**소스 다양성:** 한 소스에서 max 3개, 최소 5개 다른 소스
 
 For each item: 1-line English summary — **what can I DO with this?** Not what it is.
 
@@ -241,12 +244,18 @@ curl -s -X DELETE "${SUPABASE_URL}/rest/v1/news_curated?id=gt.0" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 
 # Insert curated items (build JSON array with jq)
+# IMPORTANT: Do NOT include any "Show HN" personal product/app launches.
+# Only include Show HN if it's an open-source framework/library with a GitHub repo.
 cat > /tmp/curated.json << 'CURATED_EOF'
 [
   {"title": "...", "url": "...", "source": "...", "score": 123, "summary": "Why it matters..."},
   ...
 ]
 CURATED_EOF
+
+# Post-filter: remove show_hn entirely (safety net)
+jq '[.[] | select(.source != "show_hn")]' /tmp/curated.json > /tmp/curated_filtered.json
+mv /tmp/curated_filtered.json /tmp/curated.json
 
 curl -s -X POST "${SUPABASE_URL}/rest/v1/news_curated" \
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
