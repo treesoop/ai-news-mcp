@@ -43,29 +43,20 @@ Use WebFetch to fetch from each source. Collect as many items as possible.
 ```bash
 REDDIT_UA="ai-news-mcp/1.0 (public news aggregator; contact: official@treesoop.com)"
 
-curl -s "https://www.reddit.com/r/MachineLearning/hot.json?limit=15" -H "User-Agent: $REDDIT_UA" > /tmp/reddit_ml.json
-curl -s "https://www.reddit.com/r/LocalLLaMA/hot.json?limit=15"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_localllama.json
-curl -s "https://www.reddit.com/r/artificial/hot.json?limit=10"       -H "User-Agent: $REDDIT_UA" > /tmp/reddit_artificial.json
-curl -s "https://www.reddit.com/r/programming/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_programming.json
-curl -s "https://www.reddit.com/r/ClaudeAI/hot.json?limit=15"         -H "User-Agent: $REDDIT_UA" > /tmp/reddit_claudeai.json
-curl -s "https://www.reddit.com/r/vibecoding/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_vibecoding.json
+curl -s "https://www.reddit.com/r/artificial/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_artificial.json
+curl -s "https://www.reddit.com/r/ClaudeAI/hot.json?limit=15"       -H "User-Agent: $REDDIT_UA" > /tmp/reddit_claudeai.json
+curl -s "https://www.reddit.com/r/vibecoding/hot.json?limit=10"     -H "User-Agent: $REDDIT_UA" > /tmp/reddit_vibecoding.json
+curl -s "https://www.reddit.com/r/codex/hot.json?limit=10"          -H "User-Agent: $REDDIT_UA" > /tmp/reddit_codex.json
+curl -s "https://www.reddit.com/r/claudecode/hot.json?limit=10"     -H "User-Agent: $REDDIT_UA" > /tmp/reddit_claudecode.json
+curl -s "https://www.reddit.com/r/openclaw/hot.json?limit=10"       -H "User-Agent: $REDDIT_UA" > /tmp/reddit_openclaw.json
 ```
 Parse each file with jq:
 ```bash
-jq '[.data.children[].data | {title, score, url: (if .is_self then ("https://reddit.com" + .permalink) else .url end)}]' /tmp/reddit_ml.json
+jq '[.data.children[].data | {title, score, url: (if .is_self then ("https://reddit.com" + .permalink) else .url end)}]' /tmp/reddit_artificial.json
 ```
-source values: "reddit_ml", "reddit_localllama", "reddit_artificial", "reddit_programming", "reddit_claudeai", "reddit_vibecoding"
+source values: "reddit_artificial", "reddit_claudeai", "reddit_vibecoding", "reddit_codex", "reddit_claudecode", "reddit_openclaw"
 
-### 3-3. ArXiv RSS
-- `https://rss.arxiv.org/rss/cs.AI` → source: "arxiv_ai"
-- `https://rss.arxiv.org/rss/cs.LG` → source: "arxiv_ml"
-- Extract: title, link as url, description as summary
-
-### 3-4. Dev.to
-- `https://dev.to/api/articles?top=1&per_page=20&tag=ai` → source: "devto"
-- Extract: title, url, positive_reactions_count as score
-
-### 3-5. Lobsters
+### 3-3. Lobsters
 - `https://lobste.rs/hottest.json` → source: "lobsters"
 - Extract: title, url, score (first 25)
 
@@ -73,56 +64,13 @@ source values: "reddit_ml", "reddit_localllama", "reddit_artificial", "reddit_pr
 - `https://github.com/trending` → source: "github"
 - Parse HTML: extract repo names, descriptions, star counts
 
-### 3-7. Hugging Face Daily Papers (use Bash curl)
-```bash
-curl -s "https://huggingface.co/api/daily_papers?limit=15" > /tmp/hf_papers.json
-```
-Parse with jq:
-```bash
-jq '[.[] | {title: .paper.title, url: ("https://huggingface.co/papers/" + .paper.id), score: .paper.upvotes, source: "huggingface"}]' /tmp/hf_papers.json
-```
-source: "huggingface" — AI/ML papers curated daily by the HF community.
-
-### 3-9. OpenAI News (use Bash curl — RSS)
-```bash
-curl -s "https://openai.com/news/rss.xml" > /tmp/openai_news.xml
-```
-Parse: extract `<title>` (CDATA), `<link>`, `<description>` tags (first 15 items).
-source: "openai" — official OpenAI announcements (Codex, Harness Engineering, model releases, agent features).
-
-### 3-10. InfoQ AI & ML (use Bash curl — RSS)
-```bash
-curl -s "https://feed.infoq.com/ai-ml-data-eng" > /tmp/infoq_ai.xml
-```
-Parse: extract `<title>` and `<link>` tags (first 10 items). Skip feed title.
-source: "infoq" — deep technical coverage of AI native engineering, agentic patterns, LLM evaluation.
-
-### 3-11. GeekNews (use Bash curl — HTML scrape)
+### 3-6. GeekNews (use Bash curl — HTML scrape)
 ```bash
 curl -s "https://news.hada.io" > /tmp/geeknews.html
 ```
 Parse HTML: extract titles, URLs, and point scores from the front page. Source: "geeknews" — Korean tech community with high-quality AI/dev links. Many items overlap with HN but with Korean community perspective.
 
-### 3-12. Product Hunt (use Bash curl — RSS)
-```bash
-curl -s "https://www.producthunt.com/feed" > /tmp/producthunt.xml
-```
-Parse: extract `<title>` and `<link>` tags (first 20 items). Skip feed title.
-source: "producthunt" — hottest new AI tools launching TODAY.
-
-### 3-12. Hacker News "Show HN" (use Bash curl — Algolia API)
-This is where engineers actually share what they built. Real-time signal.
-```bash
-YESTERDAY=$(date -v-24H +%s 2>/dev/null || date -d '24 hours ago' +%s)
-curl -s "https://hn.algolia.com/api/v1/search?tags=show_hn&numericFilters=created_at_i%3E${YESTERDAY}&hitsPerPage=20" > /tmp/show_hn.json
-```
-Parse with jq:
-```bash
-jq '[.hits[] | {title, url, score: .points, source: "show_hn"}] | sort_by(.score) | reverse' /tmp/show_hn.json
-```
-source: "show_hn" — developers sharing what they JUST built. Harness engineering, AI agents, Claude Code tools, evals. This is where OpenHarness, AI coding dashboards, agent tools first appear.
-
-### 3-13. Hugging Face Spaces Trending (use Bash curl)
+### 3-8. Hugging Face Spaces Trending (use Bash curl)
 AI demos people are actually trying right now — separate from papers.
 ```bash
 curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15" > /tmp/hf_spaces.json
