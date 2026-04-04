@@ -97,7 +97,13 @@ curl -s "https://feed.infoq.com/ai-ml-data-eng" > /tmp/infoq_ai.xml
 Parse: extract `<title>` and `<link>` tags (first 10 items). Skip feed title.
 source: "infoq" — deep technical coverage of AI native engineering, agentic patterns, LLM evaluation.
 
-### 3-11. Product Hunt (use Bash curl — RSS)
+### 3-11. GeekNews (use Bash curl — HTML scrape)
+```bash
+curl -s "https://news.hada.io" > /tmp/geeknews.html
+```
+Parse HTML: extract titles, URLs, and point scores from the front page. Source: "geeknews" — Korean tech community with high-quality AI/dev links. Many items overlap with HN but with Korean community perspective.
+
+### 3-12. Product Hunt (use Bash curl — RSS)
 ```bash
 curl -s "https://www.producthunt.com/feed" > /tmp/producthunt.xml
 ```
@@ -173,95 +179,8 @@ curl -s -X DELETE "${SUPABASE_URL}/rest/v1/news_cache?created_at=lt.${CUTOFF}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
 
-## STEP 6: Curate top 20 for vibe coders & AI builders
-
-Read all items and pick **top 20 that vibe coders and AI automation builders would actually care about**. NOT for researchers. NOT for security experts. For people who BUILD with AI every day.
-
-First, fetch all items from the cache you just saved:
-```bash
-ITEMS=$(curl -s "${SUPABASE_URL}/rest/v1/news_cache?order=created_at.desc&limit=1&select=data" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" | jq -r '.[0].data.items')
-echo "$ITEMS" | jq 'length'
-```
-
-**타겟 독자: 바이브코더 & AI 자동화 빌더.** Cursor/Claude Code로 코딩하고, MCP 서버 만들고, Ollama 로컬 모델 돌리고, n8n/Make로 자동화하는 사람들. 연구자가 아니다. 보안 전문가가 아니다. **만들고, 자동화하고, 돈 버는 사람들이다.**
-
-**20개 구성:**
-
-**커뮤니티 핫토픽 8~10개 (메인):**
-- 각 Reddit 서브 점수 top 3를 먼저 본다 — 이게 오늘 사람들이 진짜 흥분하는 것
-- r/vibecoding, r/ClaudeAI, r/LocalLLaMA가 핵심 소스
-- 프롬프트 hack, 토큰 절약법, 도구 비교, 가격 정책 변화, 바이브코딩 문화
-- HN 500pts+ 토픽
-- i.redd.it 이미지 URL인 경우 → Reddit permalink로 대체
-
-**실용 뉴스 6~8개:**
-- 새 모델 출시 (Gemma, Qwen, GPT, Claude, Llama, Mistral) — 바로 쓸 수 있는 것
-- AI 코딩 도구 (Cursor, Claude Code, Copilot, Codex, Windsurf)
-- 로컬 LLM (llama.cpp, Ollama, vLLM, LM Studio)
-- 자동화 도구 (MCP 서버, AI 에이전트, n8n, Make)
-- 비용 절약, 배포 팁, 워크플로우 개선
-- 업계 동향 (가격 변경, API 업데이트, 인수)
-
-**GitHub 트렌딩 1~2개:**
-- AI 코딩 도구, 자동화 프레임워크, LLM 관련 레포만
-- vim 플러그인, CSS 엔진, 일반 dev tool은 제외
-
-**연구 논문 최대 1개:**
-- 바로 실무에 쓸 수 있는 것만 (추론 최적화, 새 아키텍처)
-- 순수 이론 제외
-
-**Hard exclude:**
-- GitHub gists
-- 채용, 자기홍보, 월간 토론 쓰레드
-- show_hn 소스 아이템은 전부 제외 — 진짜 중요한 건 HN이나 GitHub에서 다시 뜸
-- 순수 보안 뉴스 (CVE, 취약점) — 우리 독자는 보안 전문가가 아님
-- 비AI 뉴스 (정치, 우주, 하드웨어)
-- AI 윤리/감정/의식 철학 토론
-- 구독 불만, 사용량 제한 rant
-
-**최종 필터 (각 항목마다 자문):**
-1. "바이브코더가 이거 보고 뭔가 만들거나 바꾸고 싶어지나?" — NO면 제외
-2. "이게 그냥 누군가의 프로덕트 광고 아닌가?" — YES면 제외
-3. "커뮤니티가 진짜 이거 때문에 흥분하고 있나?" — 점수만 높고 실질적 반응 없으면 제외
-
-**소스 다양성:** 한 소스에서 max 3개, 최소 5개 다른 소스
-
-For each item: 1-line English summary — **what can I DO with this?** Not what it is.
-
-**Save to news_curated** (delete old entries first, then insert new batch):
-```bash
-# Clear old curated items
-curl -s -X DELETE "${SUPABASE_URL}/rest/v1/news_curated?id=gt.0" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
-
-# Insert curated items (build JSON array with jq)
-# IMPORTANT: Do NOT include any "Show HN" personal product/app launches.
-# Only include Show HN if it's an open-source framework/library with a GitHub repo.
-cat > /tmp/curated.json << 'CURATED_EOF'
-[
-  {"title": "...", "url": "...", "source": "...", "score": 123, "summary": "Why it matters..."},
-  ...
-]
-CURATED_EOF
-
-# Post-filter: remove show_hn entirely (safety net)
-jq '[.[] | select(.source != "show_hn")]' /tmp/curated.json > /tmp/curated_filtered.json
-mv /tmp/curated_filtered.json /tmp/curated.json
-
-curl -s -X POST "${SUPABASE_URL}/rest/v1/news_curated" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d @/tmp/curated.json
-```
-
-Print "Curated: N items saved to news_curated."
-
 ## IMPORTANT
 - If a source fails to fetch, skip it (don't crash)
 - Always check cache before fetching (step 2)
 - Today's UTC time: use `date -u` command
+- Curation (STEP 6) is handled by a separate process — do NOT curate here.

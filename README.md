@@ -6,7 +6,7 @@
 >
 > Claude doesn't know what happened after its training cutoff. Ask it "what's hot in AI right now?" and you get stale answers. Tell it to scrape the web for you and you wait forever.
 >
-> **We scrape 18 sources every 6 hours and store everything in a database. Connect via MCP and Claude pulls fresh data instantly.**
+> **We scrape 18 sources every 6 hours, then Opus curates the top 20 items for AI builders. Connect via MCP and Claude pulls fresh, curated data instantly.**
 
 Real-time AI/tech news aggregator MCP server — runs on Supabase Edge Functions, **free, no auth required**.
 
