@@ -1,6 +1,6 @@
-# Curate top 20 AI news for vibe coders & AI builders
+# Curate top 30 AI news for vibe coders & AI builders
 
-Read all items from the latest news_cache and pick **top 20 that vibe coders and AI automation builders would actually care about**. NOT for researchers. NOT for security experts. For people who BUILD with AI every day.
+Read all items from the latest news_cache and pick **top 30 that vibe coders and AI automation builders would actually care about**. NOT for researchers. NOT for security experts. For people who BUILD with AI every day.
 
 ## Environment Variables
 - `SUPABASE_URL` — Supabase project URL
@@ -20,7 +20,7 @@ Review ALL items grouped by source. Each item has a `summary` field with actual 
 
 Items with empty summary = content was garbage or inaccessible → skip them.
 
-## STEP 2: Select top 20
+## STEP 2: Select top 30
 
 **타겟 독자: 바이브코더 & AI 자동화 빌더.**
 
