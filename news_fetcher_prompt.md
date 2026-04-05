@@ -87,17 +87,46 @@ If any source fails, skip it and continue.
 
 For each source, pick the **top 10 most relevant-looking items** (judge by title + score).
 
-Then for each of those ~100 items, **WebFetch the URL** and write a 1-line summary of the actual content. This summary should answer: "What specifically does this page contain that a vibe coder could use?"
+### 로컬 캐시 로드 (WebFetch 절약)
+
+```bash
+CACHE_FILE="/Users/potenlab/potenlab/scheduled_task/ai-news-mcp/cache/url_summaries.json"
+if [ -f "$CACHE_FILE" ]; then
+  # 3일 이상 된 항목 제거
+  CUTOFF=$(date -v-3d +%s 2>/dev/null || date -d '3 days ago' +%s)
+  jq --arg cutoff "$CUTOFF" '[.[] | select((.ts // 0) > ($cutoff | tonumber))]' "$CACHE_FILE" > "${CACHE_FILE}.tmp" && mv "${CACHE_FILE}.tmp" "$CACHE_FILE"
+  echo "캐시 로드: $(jq length "$CACHE_FILE")개"
+else
+  echo '[]' > "$CACHE_FILE"
+  echo "캐시 없음, 새로 생성"
+fi
+```
+
+### WebFetch (캐시에 없는 것만)
+
+각 항목마다:
+1. `jq`로 `$CACHE_FILE`에서 URL 검색
+2. **캐시에 있으면 → summary 재사용, WebFetch 스킵**
+3. **캐시에 없으면 → WebFetch → summary 작성 → 캐시에 추가**
 
 ```
 For each item:
-  1. WebFetch the URL
-  2. Read the content
-  3. Write a 1-line summary (max 150 chars) of the ACTUAL content, not just the title
-  4. If WebFetch fails or content is empty/low-quality, set summary to "" (empty)
+  cached = jq에서 해당 URL의 summary 확인
+  if cached:
+    summary = cached summary
+  else:
+    WebFetch the URL
+    Write a 1-line summary (max 150 chars) — "What can a vibe coder DO with this?"
+    If WebFetch fails → summary = ""
+    Save to cache: jq '. += [{"url": URL, "summary": SUMMARY, "ts": NOW_EPOCH}]'
 ```
 
-Add the summary to each item's `summary` field. Items with empty summaries (content was garbage, paywall, or just a meme image) should be deprioritized.
+### 캐시 저장
+
+```bash
+# 모든 WebFetch 완료 후 캐시 파일 저장 (이미 각 항목마다 추가했으므로 별도 저장 불필요)
+echo "캐시 저장 완료: $(jq length "$CACHE_FILE")개"
+```
 
 **Skip WebFetch for:**
 - i.redd.it / imgur image URLs (just set summary to "image post")
