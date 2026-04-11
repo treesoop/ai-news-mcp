@@ -81,3 +81,7 @@ export async function scrapeRedditArtificial(): Promise<NewsItem[]> {
 export async function scrapeRedditProgramming(): Promise<NewsItem[]> {
   return fetchSubreddit("programming", 10, "reddit_programming");
 }
+
+export async function scrapeRedditClaudeAI(): Promise<NewsItem[]> {
+  return fetchSubreddit("ClaudeAI", 15, "reddit_claudeai");
+}

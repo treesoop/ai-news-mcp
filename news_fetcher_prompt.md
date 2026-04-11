@@ -35,112 +35,201 @@ If the response contains data (not `[]`), cache already exists for this hour. Pr
 Use WebFetch to fetch from each source. Collect as many items as possible.
 
 ### 3-1. HackerNews (top 20)
-1. Fetch: `https://hacker-news.firebaseio.com/v0/topstories.json` → get top 20 IDs
-2. For each ID fetch: `https://hacker-news.firebaseio.com/v0/item/{id}.json`
-3. Keep: title, url, score. source = "hackernews"
+
+Use Bash (NOT WebFetch) to fetch and parse HackerNews. This avoids hallucinating IDs.
+
+```bash
+# Get top 20 story IDs
+HN_IDS=$(curl -s "https://hacker-news.firebaseio.com/v0/topstories.json" | jq -r '.[:20][]')
+
+# Fetch each item and filter: only type=="story", must have title
+HN_ITEMS="[]"
+for id in $HN_IDS; do
+  item=$(curl -s "https://hacker-news.firebaseio.com/v0/item/${id}.json")
+  type=$(echo "$item" | jq -r '.type // "unknown"')
+  title=$(echo "$item" | jq -r '.title // ""')
+  if [ "$type" = "story" ] && [ -n "$title" ] && [ "$title" != "null" ]; then
+    url=$(echo "$item" | jq -r '.url // ""')
+    score=$(echo "$item" | jq -r '.score // 0')
+    # If no external URL, use HN permalink (with ACTUAL id from JSON, not loop variable)
+    actual_id=$(echo "$item" | jq -r '.id')
+    if [ -z "$url" ] || [ "$url" = "null" ]; then
+      url="https://news.ycombinator.com/item?id=${actual_id}"
+    fi
+    entry=$(jq -n --arg t "$title" --arg u "$url" --argjson s "$score" \
+      '{"title":$t,"url":$u,"score":$s,"source":"hackernews"}')
+    HN_ITEMS=$(echo "$HN_ITEMS" | jq --argjson e "$entry" '. += [$e]')
+  fi
+done
+echo "HN items: $(echo "$HN_ITEMS" | jq length)"
+echo "$HN_ITEMS" | jq -r '.[] | "  [\(.score)] \(.title)"'
+```
+
+Save `$HN_ITEMS` for the final JSON assembly in STEP 5.
 
 ### 3-2. Reddit (use Bash curl — WebFetch is blocked by Reddit)
+
+**⚠️ 반드시 jq로 파싱해서 즉시 파일로 저장. URL을 기억해서 나중에 타이핑하지 말 것.**
+
 ```bash
 REDDIT_UA="ai-news-mcp/1.0 (public news aggregator; contact: official@treesoop.com)"
 
-curl -s "https://www.reddit.com/r/artificial/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/reddit_artificial.json
-curl -s "https://www.reddit.com/r/ClaudeAI/hot.json?limit=15"       -H "User-Agent: $REDDIT_UA" > /tmp/reddit_claudeai.json
-curl -s "https://www.reddit.com/r/vibecoding/hot.json?limit=10"     -H "User-Agent: $REDDIT_UA" > /tmp/reddit_vibecoding.json
-curl -s "https://www.reddit.com/r/codex/hot.json?limit=10"          -H "User-Agent: $REDDIT_UA" > /tmp/reddit_codex.json
-curl -s "https://www.reddit.com/r/claudecode/hot.json?limit=10"     -H "User-Agent: $REDDIT_UA" > /tmp/reddit_claudecode.json
-curl -s "https://www.reddit.com/r/openclaw/hot.json?limit=10"       -H "User-Agent: $REDDIT_UA" > /tmp/reddit_openclaw.json
+# 각 subreddit 원본 저장
+curl -s "https://www.reddit.com/r/artificial/hot.json?limit=10"  -H "User-Agent: $REDDIT_UA" > /tmp/raw_reddit_artificial.json
+curl -s "https://www.reddit.com/r/ClaudeAI/hot.json?limit=15"   -H "User-Agent: $REDDIT_UA" > /tmp/raw_reddit_claudeai.json
+curl -s "https://www.reddit.com/r/vibecoding/hot.json?limit=10" -H "User-Agent: $REDDIT_UA" > /tmp/raw_reddit_vibecoding.json
+curl -s "https://www.reddit.com/r/codex/hot.json?limit=10"      -H "User-Agent: $REDDIT_UA" > /tmp/raw_reddit_codex.json
+curl -s "https://www.reddit.com/r/claudecode/hot.json?limit=10" -H "User-Agent: $REDDIT_UA" > /tmp/raw_reddit_claudecode.json
+curl -s "https://www.reddit.com/r/openclaw/hot.json?limit=10"   -H "User-Agent: $REDDIT_UA" > /tmp/raw_reddit_openclaw.json
+
+# jq로 파싱 → 즉시 parsed 파일 저장 (URL은 원본 JSON에서 추출)
+for sub in artificial claudeai vibecoding codex claudecode openclaw; do
+  src="reddit_${sub}"
+  jq --arg src "$src" '[.data.children[].data | {
+    title,
+    score,
+    url: (if .is_self then ("https://reddit.com" + .permalink) else .url end),
+    summary: (.selftext[:200] // ""),
+    source: $src
+  }]' /tmp/raw_reddit_${sub}.json > /tmp/parsed_reddit_${sub}.json 2>/dev/null || echo '[]' > /tmp/parsed_reddit_${sub}.json
+  echo "$src: $(jq length /tmp/parsed_reddit_${sub}.json) items"
+done
 ```
-Parse each file with jq:
-```bash
-jq '[.data.children[].data | {title, score, url: (if .is_self then ("https://reddit.com" + .permalink) else .url end), summary: (.selftext[:200] // "")}]' /tmp/reddit_artificial.json
-```
-source values: "reddit_artificial", "reddit_claudeai", "reddit_vibecoding", "reddit_codex", "reddit_claudecode", "reddit_openclaw"
 
 ### 3-3. Lobsters
-- `https://lobste.rs/hottest.json` → source: "lobsters"
-- Extract: title, url, score (first 25)
 
-### 3-6. GitHub Trending
-- `https://github.com/trending` → source: "github"
-- Parse HTML: extract repo names, descriptions, star counts
+```bash
+curl -s "https://lobste.rs/hottest.json" > /tmp/raw_lobsters.json
+jq '[.[:25][] | {title, url, score, source: "lobsters", summary: ""}]' /tmp/raw_lobsters.json > /tmp/parsed_lobsters.json 2>/dev/null || echo '[]' > /tmp/parsed_lobsters.json
+echo "lobsters: $(jq length /tmp/parsed_lobsters.json) items"
+```
 
-### 3-6. GeekNews (use Bash curl — HTML scrape)
-```bash
-curl -s "https://news.hada.io" > /tmp/geeknews.html
-```
-Parse HTML: extract titles, URLs, and point scores from the front page. Source: "geeknews" — Korean tech community with high-quality AI/dev links. Many items overlap with HN but with Korean community perspective.
+### 3-4. GitHub Trending
 
-### 3-8. Hugging Face Spaces Trending (use Bash curl)
-AI demos people are actually trying right now — separate from papers.
+Use WebFetch to read https://github.com/trending and extract the top 20 trending repositories. For each repo extract: the `owner/repo` name, description, and star count. Save to `/tmp/parsed_github.json` with format `[{"title": "owner/repo", "url": "https://github.com/owner/repo", "score": STARS, "source": "github", "summary": "description"}]`. Print `github: N items`.
+
+### 3-5. GeekNews
+
+Use WebFetch to read https://news.hada.io and extract the top 15 stories. Each story has a title, external URL, and point score. Return them as a JSON array and save to `/tmp/parsed_geeknews.json` with format `[{"title": "...", "url": "...", "score": N, "source": "geeknews", "summary": ""}]`. Print `geeknews: N items`.
+
+### 3-6. OpenAI News (RSS)
+
 ```bash
-curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15" > /tmp/hf_spaces.json
+# OpenAI blocks HTML scraping with Cloudflare — use RSS feed instead
+curl -sL "https://openai.com/blog/rss.xml" \
+  -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+  -H "Accept: application/rss+xml, text/xml" > /tmp/raw_openai_rss.xml
+python3 - << 'PYEOF'
+import re, json
+xml = open('/tmp/raw_openai_rss.xml').read()
+# Skip tutorial/academy/B2B categories — keep real news
+SKIP_CATS = {'OpenAI Academy', 'B2B Story', 'Brand Story', 'Guides', 'Webinar', 'Startup'}
+KEEP_CATS = {'Product', 'Research', 'Release', 'Company', 'Engineering', 'API', 'Safety', 'Safety & Alignment', 'ChatGPT', 'Security', 'Global Affairs'}
+items_raw = re.findall(r'<item>([\s\S]*?)</item>', xml)
+items = []
+for item in items_raw:
+    title_m = re.search(r'<title><!\[CDATA\[(.*?)\]\]>', item) or re.search(r'<title>(.*?)</title>', item)
+    link_m = re.search(r'<link>(.*?)</link>', item)
+    desc_m = re.search(r'<description><!\[CDATA\[(.*?)\]\]>', item)
+    cat_m = re.search(r'<category><!\[CDATA\[(.*?)\]\]>', item)
+    if not title_m or not link_m:
+        continue
+    cat = cat_m.group(1) if cat_m else ''
+    if cat in SKIP_CATS:
+        continue
+    title = title_m.group(1).strip()
+    url = link_m.group(1).strip()
+    summary = re.sub(r'<[^>]+>', '', desc_m.group(1)).strip()[:200] if desc_m else ''
+    items.append({'title': title, 'url': url, 'score': 0, 'source': 'openai', 'summary': summary})
+    if len(items) >= 15:
+        break
+json.dump(items, open('/tmp/parsed_openai.json', 'w'))
+print(f"openai: {len(items)} items")
+PYEOF
 ```
-Parse with jq:
+
+### 3-7. Anthropic (Claude Official) News
+
+Use WebFetch to read https://www.anthropic.com/news and extract the top 15 articles. Each article links to a `/news/SLUG` URL. Extract the title and URL for each. Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible"}]`. Print `anthropic: N items`.
+
+### 3-8. Hugging Face Spaces Trending
+
 ```bash
-jq '[.[] | {title: .id, url: ("https://huggingface.co/spaces/" + .id), score: .trendingScore, source: "hf_spaces"}]' /tmp/hf_spaces.json
+curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15" > /tmp/raw_hf_spaces.json
+jq '[.[] | {title: .id, url: ("https://huggingface.co/spaces/" + .id), score: (.trendingScore // 0), source: "hf_spaces", summary: ""}]' /tmp/raw_hf_spaces.json > /tmp/parsed_hf_spaces.json 2>/dev/null || echo '[]' > /tmp/parsed_hf_spaces.json
+echo "hf_spaces: $(jq length /tmp/parsed_hf_spaces.json) items"
 ```
-source: "hf_spaces" — hottest AI demos and tools engineers are sharing and trying right now.
 
 If any source fails, skip it and continue.
 
-## STEP 4: Summarize top items from each source
+## STEP 4: Merge all sources + add summaries
 
-For each source, pick the **top 10 most relevant-looking items** (judge by title + score).
+### 4-1. 모든 parsed 파일을 하나로 합치기
 
-### 로컬 캐시 로드 (WebFetch 절약)
+**⚠️ URL을 직접 타이핑하지 말 것. jq로 파일에서 읽어서 합칠 것.**
+
+```bash
+# 존재하는 parsed 파일만 합치기
+jq -s 'add // []' \
+  /tmp/parsed_hn.json \
+  /tmp/parsed_reddit_artificial.json \
+  /tmp/parsed_reddit_claudeai.json \
+  /tmp/parsed_reddit_vibecoding.json \
+  /tmp/parsed_reddit_codex.json \
+  /tmp/parsed_reddit_claudecode.json \
+  /tmp/parsed_reddit_openclaw.json \
+  /tmp/parsed_lobsters.json \
+  /tmp/parsed_github.json \
+  /tmp/parsed_geeknews.json \
+  /tmp/parsed_hf_spaces.json \
+  /tmp/parsed_openai.json \
+  /tmp/parsed_anthropic.json \
+  2>/dev/null > /tmp/all_items_merged.json
+
+echo "Total merged: $(jq length /tmp/all_items_merged.json) items"
+jq -r 'group_by(.source)[] | "  \(.[0].source): \(length)"' /tmp/all_items_merged.json
+```
+
+**Note**: HN items were saved to `$HN_ITEMS` variable. Save to file first:
+```bash
+echo "$HN_ITEMS" > /tmp/parsed_hn.json
+```
+Run the merge command above after saving.
+
+### 4-2. URL summary cache 로드
 
 ```bash
 CACHE_FILE="/Users/potenlab/potenlab/scheduled_task/ai-news-mcp/cache/url_summaries.json"
 if [ -f "$CACHE_FILE" ]; then
-  # 3일 이상 된 항목 제거
   CUTOFF=$(date -v-3d +%s 2>/dev/null || date -d '3 days ago' +%s)
   jq --arg cutoff "$CUTOFF" '[.[] | select((.ts // 0) > ($cutoff | tonumber))]' "$CACHE_FILE" > "${CACHE_FILE}.tmp" && mv "${CACHE_FILE}.tmp" "$CACHE_FILE"
   echo "캐시 로드: $(jq length "$CACHE_FILE")개"
 else
   echo '[]' > "$CACHE_FILE"
-  echo "캐시 없음, 새로 생성"
 fi
 ```
 
-### WebFetch (캐시에 없는 것만)
+### 4-3. 각 소스 top 10 선택 후 WebFetch (summary 없는 것만)
 
-각 항목마다:
-1. `jq`로 `$CACHE_FILE`에서 URL 검색
-2. **캐시에 있으면 → summary 재사용, WebFetch 스킵**
-3. **캐시에 없으면 → WebFetch → summary 작성 → 캐시에 추가**
+For each source in the merged file, pick top 10 by score. For items without a summary:
+- Skip: i.redd.it / v.redd.it / imgur / reddit.com/gallery/ → summary = ""
+- Check url_summaries.json cache first
+- WebFetch if not cached → write 1-line summary (max 150 chars, "what can I DO with this?")
+- Save to cache: `jq '. += [{"url": URL, "summary": SUMMARY, "ts": NOW_EPOCH}]' "$CACHE_FILE" > tmp && mv tmp "$CACHE_FILE"`
 
-```
-For each item:
-  cached = jq에서 해당 URL의 summary 확인
-  if cached:
-    summary = cached summary
-  else:
-    WebFetch the URL
-    Write a 1-line summary (max 150 chars) — "What can a vibe coder DO with this?"
-    If WebFetch fails → summary = ""
-    Save to cache: jq '. += [{"url": URL, "summary": SUMMARY, "ts": NOW_EPOCH}]'
-```
+**⚠️ summary 저장 시 URL은 `jq`로 원본 항목에서 읽을 것. URL을 직접 타이핑하지 말 것.**
 
-### 캐시 저장
-
+After updating summaries, write the final items back to file:
 ```bash
-# 모든 WebFetch 완료 후 캐시 파일 저장 (이미 각 항목마다 추가했으므로 별도 저장 불필요)
-echo "캐시 저장 완료: $(jq length "$CACHE_FILE")개"
+# summary 업데이트는 jq로 원본 파일 수정 (URL 불변)
+# 예: jq --arg url "..." --arg s "..." 'map(if .url == $url then .summary = $s else . end)' /tmp/all_items_merged.json > /tmp/news_items.json
 ```
-
-**Skip WebFetch for:**
-- i.redd.it / imgur image URLs (just set summary to "image post")
-- reddit.com/gallery/ URLs (set summary to "image gallery")
 
 ## STEP 5: Build and save to Supabase
 
-Combine all items into a single JSON array. Count items per source.
-
 ```bash
-# Write to temp file
-cat > /tmp/news_items.json << 'JSON_EOF'
-[PASTE_ITEMS_ARRAY_HERE]
-JSON_EOF
+# all_items_merged.json이 최종본 (summary 업데이트 완료)
+cp /tmp/all_items_merged.json /tmp/news_items.json
 
 # Build payload with jq
 PAYLOAD=$(jq -n \

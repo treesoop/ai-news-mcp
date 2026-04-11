@@ -7,10 +7,13 @@ import {
   scrapeRedditLocalLLaMA,
   scrapeRedditArtificial,
   scrapeRedditProgramming,
+  scrapeRedditClaudeAI,
 } from "../scrapers/reddit";
 import { scrapeArxivAI, scrapeArxivML } from "../scrapers/arxiv";
 import { scrapeGitHubTrending } from "../scrapers/github";
 import { scrapeGeekNews } from "../scrapers/geeknews";
+import { scrapeOpenAINews } from "../scrapers/openai";
+import { scrapeAnthropicNews } from "../scrapers/anthropic";
 import { Category, NewsItem, NewsSource, TrendingNewsResult } from "../types";
 
 const SOURCE_CATEGORIES: Partial<Record<NewsSource, Category[]>> = {
@@ -30,6 +33,7 @@ const SOURCE_CATEGORIES: Partial<Record<NewsSource, Category[]>> = {
   huggingface: ["AI"],
   hf_spaces: ["AI"],
   openai: ["AI"],
+  anthropic: ["AI"],
   thenewstack: ["AI", "dev-tools"],
   infoq: ["AI", "dev-tools"],
 };
@@ -51,10 +55,13 @@ async function fetchAllSources(): Promise<NewsItem[]> {
     scrapeRedditLocalLLaMA,
     scrapeRedditArtificial,
     scrapeRedditProgramming,
+    scrapeRedditClaudeAI,
     scrapeArxivAI,
     scrapeArxivML,
     scrapeGitHubTrending,
     scrapeGeekNews,
+    scrapeOpenAINews,
+    scrapeAnthropicNews,
   ];
 
   const results = await Promise.allSettled(scrapers.map((fn) => fn()));

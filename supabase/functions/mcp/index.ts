@@ -22,6 +22,7 @@ const SOURCE_SCORES: Record<string, number> = {
   reddit_claudeai:    260,  // Claude Code / AI coding tools
   reddit_ml:          240,
   openai:             220,  // official announcements
+  anthropic:          230,  // Claude / Anthropic official blog
   huggingface:        200,  // curated AI papers
   hf_spaces:          180,  // trending AI demos
   reddit_artificial:  180,
@@ -307,6 +308,7 @@ async function readResource(uri: string): Promise<string> {
         reddit_artificial: "r/artificial — general AI discussion",
         reddit_programming: "r/programming — general dev community",
         openai: "OpenAI official news — model releases, Codex, agents",
+        anthropic: "Anthropic official news — Claude releases, research, safety announcements",
         huggingface: "HuggingFace Daily Papers — curated AI/ML papers",
         hf_spaces: "HuggingFace Spaces Trending — hottest AI demos right now",
         arxiv_ai: "ArXiv cs.AI — AI research papers",

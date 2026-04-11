@@ -16,6 +16,7 @@ export type NewsSource =
   | "huggingface"
   | "hf_spaces"
   | "openai"
+  | "anthropic"
   | "thenewstack"
   | "infoq";
 
