@@ -41,6 +41,8 @@ Items with empty summary = content was garbage or inaccessible → skip them.
 - 순수 연구 논문
 - 개인 프로덕트 광고
 
+**신선도:** 오래된 발표(1주일 이상 지난 것)는 제외. 제목이나 요약에서 출시/발표 날짜가 명확히 오래됐으면 스킵.
+
 **핵심 필터: "이걸 읽고 뭘 할 수 있나?"**
 - 새 도구를 써볼 수 있다 → ✅
 - 워크플로우를 바꿀 수 있다 → ✅

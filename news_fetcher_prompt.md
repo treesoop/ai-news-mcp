@@ -121,10 +121,10 @@ curl -sL "https://openai.com/blog/rss.xml" \
   -H "Accept: application/rss+xml, text/xml" > /tmp/raw_openai_rss.xml
 python3 - << 'PYEOF'
 import re, json
+from datetime import datetime, timezone, timedelta
 xml = open('/tmp/raw_openai_rss.xml').read()
-# Skip tutorial/academy/B2B categories — keep real news
 SKIP_CATS = {'OpenAI Academy', 'B2B Story', 'Brand Story', 'Guides', 'Webinar', 'Startup'}
-KEEP_CATS = {'Product', 'Research', 'Release', 'Company', 'Engineering', 'API', 'Safety', 'Safety & Alignment', 'ChatGPT', 'Security', 'Global Affairs'}
+cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 items_raw = re.findall(r'<item>([\s\S]*?)</item>', xml)
 items = []
 for item in items_raw:
@@ -132,11 +132,21 @@ for item in items_raw:
     link_m = re.search(r'<link>(.*?)</link>', item)
     desc_m = re.search(r'<description><!\[CDATA\[(.*?)\]\]>', item)
     cat_m = re.search(r'<category><!\[CDATA\[(.*?)\]\]>', item)
+    pub_m = re.search(r'<pubDate>(.*?)</pubDate>', item)
     if not title_m or not link_m:
         continue
     cat = cat_m.group(1) if cat_m else ''
     if cat in SKIP_CATS:
         continue
+    # Date filter: skip items older than 7 days
+    if pub_m:
+        try:
+            from email.utils import parsedate_to_datetime
+            pub_date = parsedate_to_datetime(pub_m.group(1).strip())
+            if pub_date < cutoff:
+                continue
+        except Exception:
+            pass
     title = title_m.group(1).strip()
     url = link_m.group(1).strip()
     summary = re.sub(r'<[^>]+>', '', desc_m.group(1)).strip()[:200] if desc_m else ''
@@ -144,13 +154,13 @@ for item in items_raw:
     if len(items) >= 15:
         break
 json.dump(items, open('/tmp/parsed_openai.json', 'w'))
-print(f"openai: {len(items)} items")
+print(f"openai: {len(items)} items (last 7 days)")
 PYEOF
 ```
 
 ### 3-7. Anthropic (Claude Official) News
 
-Use WebFetch to read https://www.anthropic.com/news and extract the top 15 articles. Each article links to a `/news/SLUG` URL. Extract the title and URL for each. Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible"}]`. Print `anthropic: N items`.
+Use WebFetch to read https://www.anthropic.com/news and extract articles **published within the last 7 days only**. Each article links to a `/news/SLUG` URL and has a visible publication date on the page. Skip anything older than 7 days from today. Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible"}]`. Print `anthropic: N items (last 7 days)`.
 
 ### 3-8. Hugging Face Spaces Trending
 

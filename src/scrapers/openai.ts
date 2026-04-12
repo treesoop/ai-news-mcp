@@ -8,6 +8,8 @@ const SKIP_CATEGORIES = new Set([
   "OpenAI Academy", "B2B Story", "Brand Story", "Guides", "Webinar", "Startup",
 ]);
 
+const MAX_AGE_DAYS = 7;
+
 export async function scrapeOpenAINews(): Promise<NewsItem[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -46,6 +48,13 @@ export async function scrapeOpenAINews(): Promise<NewsItem[]> {
 
     const category = catMatch?.[1] ?? "";
     if (SKIP_CATEGORIES.has(category)) continue;
+
+    const pubDateMatch = block.match(/<pubDate>(.*?)<\/pubDate>/);
+    if (pubDateMatch) {
+      const pubDate = new Date(pubDateMatch[1].trim());
+      const cutoff = new Date(Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
+      if (!isNaN(pubDate.getTime()) && pubDate < cutoff) continue;
+    }
 
     const title = titleMatch[1].trim();
     const url = linkMatch[1].trim();
