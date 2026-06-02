@@ -97,7 +97,8 @@ for sub in artificial claudeai vibecoding codex claudecode openclaw; do
     score,
     url: (if .is_self then ("https://reddit.com" + .permalink) else .url end),
     summary: (.selftext[:200] // ""),
-    source: $src
+    source: $src,
+    published_at: (.created_utc // null | if . then (. | floor) else null end)
   }]' /tmp/raw_reddit_${sub}.json > /tmp/parsed_reddit_${sub}.json 2>/dev/null || echo '[]' > /tmp/parsed_reddit_${sub}.json
   echo "$src: $(jq length /tmp/parsed_reddit_${sub}.json) items"
 done
