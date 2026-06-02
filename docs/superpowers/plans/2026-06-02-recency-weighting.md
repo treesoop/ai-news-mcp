@@ -457,6 +457,15 @@ Read all items from the latest news_cache and pick **top 30 that vibe coders and
 Read all items from the latest news_cache and pick **top 50 that vibe coders and AI automation builders would actually care about**.
 ```
 
+And the STEP 2 heading (line 27):
+```markdown
+# BEFORE:
+## STEP 2: Select top 30 — output index numbers ONLY
+
+# AFTER:
+## STEP 2: Select top 50 — output index numbers ONLY
+```
+
 - [ ] **Step 2: Expose `published_at` and age in STEP 1 listing**
 
 Change STEP 1 (lines 19-20):
@@ -550,14 +559,14 @@ SELECTED_INDICES: 3 7 12 15 21 25 30 42 55 61 ... (총 50개)
 ```
 ```
 
-STEP 3 (line 74) — same placeholder issue:
+STEP 3 (line 74) — same placeholder issue. Use a non-numeric sentinel so any verbatim copy-paste fails fast at bash parse time rather than silently producing empty curation:
 
 ```bash
 # BEFORE:
 INDICES="3 7 12 15 21 25 30 42 55 61"  # ← STEP 2 결과로 교체
 
 # AFTER:
-INDICES="3 7 12 15 21 25 30 42 55 61 ..."  # ← STEP 2 결과 50개로 교체
+INDICES="<STEP 2에서 출력한 50개 인덱스를 공백으로 구분해서 여기에>"  # ← 반드시 실제 숫자 50개로 교체. 이 문자열을 그대로 두면 bash가 실패한다.
 ```
 
 - [ ] **Step 6: Update final print message**

@@ -34,7 +34,7 @@ Review ALL items. Each item is shown with its **index number** `[N]`.
 **Judge by summary content, not by title or score.**
 Items with empty summary = content was garbage or inaccessible → skip them.
 
-## STEP 2: Select top 30 — output index numbers ONLY
+## STEP 2: Select top 50 — output index numbers ONLY
 
 **타겟 독자: 바이브코더 & AI 자동화 빌더.**
 
@@ -91,7 +91,7 @@ SELECTED_INDICES: 3 7 12 15 21 25 30 42 55 61 ... (총 50개)
 
 ```bash
 # STEP 2에서 결정한 인덱스로 원본 데이터에서 추출 (URL 오염 불가)
-INDICES="3 7 12 15 21 25 30 42 55 61 ..."  # ← STEP 2 결과 50개로 교체
+INDICES="<STEP 2에서 출력한 50개 인덱스를 공백으로 구분해서 여기에>"  # ← 반드시 실제 숫자 50개로 교체. 이 문자열을 그대로 두면 bash가 실패한다.
 
 # 인덱스 배열을 jq 형식으로 변환 후 추출
 IDX_ARRAY=$(echo $INDICES | tr ' ' '\n' | jq -R 'tonumber' | jq -s '.')
