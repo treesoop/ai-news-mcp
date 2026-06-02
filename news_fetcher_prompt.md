@@ -61,8 +61,10 @@ while IFS= read -r id; do
     if [ -z "$url" ] || [ "$url" = "null" ]; then
       url="https://news.ycombinator.com/item?id=${actual_id}"
     fi
+    hn_time=$(echo "$item" | jq -r '.time // empty')
     entry=$(jq -n --arg t "$title" --arg u "$url" --argjson s "$score" \
-      '{"title":$t,"url":$u,"score":$s,"source":"hackernews"}')
+      --argjson pa "${hn_time:-null}" \
+      '{"title":$t,"url":$u,"score":$s,"source":"hackernews","published_at":$pa}')
     HN_ITEMS=$(echo "$HN_ITEMS" | jq --argjson e "$entry" '. += [$e]')
   fi
 done <<< "$HN_IDS"
