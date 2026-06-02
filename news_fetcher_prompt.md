@@ -123,11 +123,11 @@ echo "lobsters: $(jq length /tmp/parsed_lobsters.json) items"
 
 ### 3-4. GitHub Trending
 
-Use WebFetch to read https://github.com/trending and extract the top 20 trending repositories. For each repo extract: the `owner/repo` name, description, and star count. Save to `/tmp/parsed_github.json` with format `[{"title": "owner/repo", "url": "https://github.com/owner/repo", "score": STARS, "source": "github", "summary": "description"}]`. Print `github: N items`.
+Use WebFetch to read https://github.com/trending and extract the top 20 trending repositories. For each repo extract: the `owner/repo` name, description, and star count. Save to `/tmp/parsed_github.json` with format `[{"title": "owner/repo", "url": "https://github.com/owner/repo", "score": STARS, "source": "github", "summary": "description", "published_at": null}]`. Note: GitHub Trending exposes no per-repo publication time; always set `published_at` to `null`. The curate prompt treats `null` as moderate freshness, which matches the semantics of "trending right now". Print `github: N items`.
 
 ### 3-5. GeekNews
 
-Use WebFetch to read https://news.hada.io and extract the top 15 stories. Each story has a title, external URL, and point score. Return them as a JSON array and save to `/tmp/parsed_geeknews.json` with format `[{"title": "...", "url": "...", "score": N, "source": "geeknews", "summary": ""}]`. Print `geeknews: N items`.
+Use WebFetch to read https://news.hada.io and extract the top 15 stories. Each story has a title, external URL, a point score, and a relative submission time (e.g. "5분전", "2시간전", "1일전"). Convert the relative time to a Unix epoch (e.g. "2시간전" → `now - 7200`, "1일전" → `now - 86400`). Return them as a JSON array and save to `/tmp/parsed_geeknews.json` with format `[{"title": "...", "url": "...", "score": N, "source": "geeknews", "summary": "", "published_at": <epoch>}]`. If you cannot determine the relative time for an item, set `published_at` to `null`. Print `geeknews: N items`.
 
 ### 3-6. OpenAI News (RSS)
 
@@ -185,7 +185,7 @@ PYEOF
 
 ### 3-7. Anthropic (Claude Official) News
 
-Use WebFetch to read https://www.anthropic.com/news and extract articles **published within the last 7 days only**. Each article links to a `/news/SLUG` URL and has a visible publication date on the page. Skip anything older than 7 days from today. Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible"}]`. Print `anthropic: N items (last 7 days)`.
+Use WebFetch to read https://www.anthropic.com/news and extract articles **published within the last 7 days only**. Each article links to a `/news/SLUG` URL and has a visible publication date on the page (e.g. "May 28, 2026"). Skip anything older than 7 days from today. Convert the visible publication date to a Unix epoch (seconds, UTC midnight is fine if only the date is shown). Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible", "published_at": <epoch>}]`. If you cannot determine the date for a given item, set `published_at` to `null` (do not guess). Print `anthropic: N items (last 7 days)`.
 
 ### 3-8. Hugging Face Spaces Trending
 
