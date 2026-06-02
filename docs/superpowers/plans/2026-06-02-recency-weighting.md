@@ -375,14 +375,14 @@ Use lastModified ISO timestamp (most meaningful for trending Spaces)."
 
 - [ ] **Step 1: Edit Anthropic instruction (best-effort via WebFetch)**
 
-In `news_fetcher_prompt.md` STEP 3-7 (line ~168), change the output format spec:
+In `news_fetcher_prompt.md` STEP 3-7 (line ~168). The actual paragraph in the file begins with a "Use WebFetch to read..." preamble (which sets the URL and 7-day filter — must be preserved). Only the latter half changes:
 
 ```markdown
-# BEFORE:
-Each article links to a `/news/SLUG` URL and has a visible publication date on the page. Skip anything older than 7 days from today. Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible"}]`. Print `anthropic: N items (last 7 days)`.
+# BEFORE (full paragraph as it exists in the file):
+Use WebFetch to read https://www.anthropic.com/news and extract articles **published within the last 7 days only**. Each article links to a `/news/SLUG` URL and has a visible publication date on the page. Skip anything older than 7 days from today. Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible"}]`. Print `anthropic: N items (last 7 days)`.
 
-# AFTER:
-Each article links to a `/news/SLUG` URL and has a visible publication date on the page (e.g. "May 28, 2026"). Skip anything older than 7 days from today. Convert the visible publication date to a Unix epoch (seconds, UTC midnight is fine if only the date is shown). Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible", "published_at": <epoch>}]`. If you cannot determine the date for a given item, set `published_at` to `null` (do not guess). Print `anthropic: N items (last 7 days)`.
+# AFTER (preamble preserved, latter half updated):
+Use WebFetch to read https://www.anthropic.com/news and extract articles **published within the last 7 days only**. Each article links to a `/news/SLUG` URL and has a visible publication date on the page (e.g. "May 28, 2026"). Skip anything older than 7 days from today. Convert the visible publication date to a Unix epoch (seconds, UTC midnight is fine if only the date is shown). Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible", "published_at": <epoch>}]`. If you cannot determine the date for a given item, set `published_at` to `null` (do not guess). Print `anthropic: N items (last 7 days)`.
 ```
 
 - [ ] **Step 2: Edit GeekNews instruction (best-effort)**
