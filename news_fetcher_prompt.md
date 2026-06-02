@@ -167,7 +167,15 @@ for item in items_raw:
     title = title_m.group(1).strip()
     url = link_m.group(1).strip()
     summary = re.sub(r'<[^>]+>', '', desc_m.group(1)).strip()[:200] if desc_m else ''
-    items.append({'title': title, 'url': url, 'score': 0, 'source': 'openai', 'summary': summary})
+    published_at = None
+    if pub_m:
+        try:
+            from email.utils import parsedate_to_datetime
+            pd = parsedate_to_datetime(pub_m.group(1).strip())
+            published_at = int(pd.timestamp())
+        except Exception:
+            pass
+    items.append({'title': title, 'url': url, 'score': 0, 'source': 'openai', 'summary': summary, 'published_at': published_at})
     if len(items) >= 15:
         break
 json.dump(items, open('/tmp/parsed_openai.json', 'w'))
