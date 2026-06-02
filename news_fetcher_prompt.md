@@ -43,8 +43,13 @@ Use Bash (NOT WebFetch) to fetch and parse HackerNews. This avoids hallucinating
 HN_IDS=$(curl -s "https://hacker-news.firebaseio.com/v0/topstories.json" | jq -r '.[:20][]')
 
 # Fetch each item and filter: only type=="story", must have title
+# NOTE: use `while read` + here-string, NOT `for id in $HN_IDS`.
+# This script runs under zsh, which does NOT word-split unquoted variables,
+# so `for id in $HN_IDS` would loop once with all 20 IDs as a single string.
+# Here-string keeps the loop in the current shell so $HN_ITEMS accumulates.
 HN_ITEMS="[]"
-for id in $HN_IDS; do
+while IFS= read -r id; do
+  [ -z "$id" ] && continue
   item=$(curl -s "https://hacker-news.firebaseio.com/v0/item/${id}.json")
   type=$(echo "$item" | jq -r '.type // "unknown"')
   title=$(echo "$item" | jq -r '.title // ""')
@@ -60,7 +65,7 @@ for id in $HN_IDS; do
       '{"title":$t,"url":$u,"score":$s,"source":"hackernews"}')
     HN_ITEMS=$(echo "$HN_ITEMS" | jq --argjson e "$entry" '. += [$e]')
   fi
-done
+done <<< "$HN_IDS"
 echo "HN items: $(echo "$HN_ITEMS" | jq length)"
 echo "$HN_ITEMS" | jq -r '.[] | "  [\(.score)] \(.title)"'
 ```
@@ -219,21 +224,95 @@ else
 fi
 ```
 
-### 4-3. 각 소스 top 10 선택 후 WebFetch (summary 없는 것만)
+### 4-3. Summary 채우기 (MANDATORY — 스킵 금지)
 
-For each source in the merged file, pick top 10 by score. For items without a summary:
-- Skip: i.redd.it / v.redd.it / imgur / reddit.com/gallery/ → summary = ""
-- Check url_summaries.json cache first
-- WebFetch if not cached → write 1-line summary (max 150 chars, "what can I DO with this?")
-- Save to cache: `jq '. += [{"url": URL, "summary": SUMMARY, "ts": NOW_EPOCH}]' "$CACHE_FILE" > tmp && mv tmp "$CACHE_FILE"`
+**⚠️ 이 단계는 절대 스킵하지 말 것. hackernews/lobsters/hf_spaces는 이 단계 없으면 summary가 빈 채로 저장돼서 curate에서 전부 버려짐.**
 
-**⚠️ summary 저장 시 URL은 `jq`로 원본 항목에서 읽을 것. URL을 직접 타이핑하지 말 것.**
+#### 4-3-1. Summary 필요한 URL 리스트 만들기 (deterministic)
 
-After updating summaries, write the final items back to file:
 ```bash
-# summary 업데이트는 jq로 원본 파일 수정 (URL 불변)
-# 예: jq --arg url "..." --arg s "..." 'map(if .url == $url then .summary = $s else . end)' /tmp/all_items_merged.json > /tmp/news_items.json
+# 캐시에 있는 URL 집합
+jq -r '.[].url' "$CACHE_FILE" | sort -u > /tmp/cached_urls.txt
+
+# top 10 per source, summary 비어있고, 캐시에도 없고, 미디어 URL 아닌 것
+jq -r '
+  group_by(.source)
+  | map(sort_by(-(.score // 0))[:10])
+  | flatten
+  | .[]
+  | select((.summary // "") == "")
+  | select((.url | test("i\\.redd\\.it|v\\.redd\\.it|imgur|reddit\\.com/gallery|\\.(jpg|jpeg|png|gif|mp4|webm)$")) | not)
+  | .url
+' /tmp/all_items_merged.json | sort -u > /tmp/needs_fetch_raw.txt
+
+# 캐시 히트 먼저 적용 (WebFetch 하기 전에)
+comm -23 /tmp/needs_fetch_raw.txt /tmp/cached_urls.txt > /tmp/needs_webfetch.txt
+
+# 캐시 히트 URL은 바로 summary 복사
+comm -12 /tmp/needs_fetch_raw.txt /tmp/cached_urls.txt > /tmp/cache_hits.txt
+while IFS= read -r url; do
+  [ -z "$url" ] && continue
+  summary=$(jq -r --arg u "$url" '.[] | select(.url == $u) | .summary' "$CACHE_FILE" | head -1)
+  [ -z "$summary" ] && continue
+  jq --arg u "$url" --arg s "$summary" \
+    'map(if .url == $u then .summary = $s else . end)' \
+    /tmp/all_items_merged.json > /tmp/merged.tmp && mv /tmp/merged.tmp /tmp/all_items_merged.json
+done < /tmp/cache_hits.txt
+
+echo "=== Summary fetch plan ==="
+echo "Cache hits applied: $(wc -l < /tmp/cache_hits.txt | tr -d ' ')"
+echo "Need WebFetch: $(wc -l < /tmp/needs_webfetch.txt | tr -d ' ')"
+echo ""
+echo "=== URLs to WebFetch (MANDATORY — do ALL of them) ==="
+cat /tmp/needs_webfetch.txt
 ```
+
+#### 4-3-2. Helper 함수 정의
+
+```bash
+add_summary() {
+  local url="$1"
+  local summary="$2"
+  local ts=$(date +%s)
+  jq --arg u "$url" --arg s "$summary" \
+    'map(if .url == $u then .summary = $s else . end)' \
+    /tmp/all_items_merged.json > /tmp/merged.tmp && mv /tmp/merged.tmp /tmp/all_items_merged.json
+  jq --arg u "$url" --arg s "$summary" --argjson ts "$ts" \
+    '. += [{url: $u, summary: $s, ts: $ts}]' \
+    "$CACHE_FILE" > "${CACHE_FILE}.tmp" && mv "${CACHE_FILE}.tmp" "$CACHE_FILE"
+}
+```
+
+#### 4-3-3. 각 URL에 대해 WebFetch 실행
+
+**`/tmp/needs_webfetch.txt`에 있는 URL을 전부 WebFetch 해. 예외 없음.**
+
+각 URL마다:
+1. WebFetch로 페이지 내용 읽기 (prompt: `"Extract the main content. What is this article/repo/tool about? Be concrete."`)
+2. 그 내용으로 1줄 요약 작성 (최대 150자, 영어, "what can I DO with this?" 관점)
+3. `add_summary "<url>" "<summary>"` 실행
+
+**⚠️ URL을 직접 타이핑하지 말 것 — `/tmp/needs_webfetch.txt`에서 복사해서 사용.**
+**⚠️ WebFetch가 404/block/timeout이면 summary = "" 로 두고 다음 URL로 넘어가. 에러 시 `add_summary "<url>" ""` 호출해서 캐시에 빈 값 저장(반복 fetch 방지).**
+
+#### 4-3-4. 검증
+
+```bash
+# top 10 per source 중에서 여전히 summary 비어있는 non-media 아이템 개수
+jq '
+  group_by(.source)
+  | map(sort_by(-(.score // 0))[:10])
+  | flatten
+  | map(select(
+      (.summary // "") == ""
+      and ((.url | test("i\\.redd\\.it|v\\.redd\\.it|imgur|reddit\\.com/gallery|\\.(jpg|jpeg|png|gif|mp4|webm)$")) | not)
+    ))
+  | group_by(.source)
+  | map({source: .[0].source, missing: length})
+' /tmp/all_items_merged.json
+```
+
+위 출력에서 `missing` 수가 많으면 (>3) WebFetch를 더 돌려. hackernews/lobsters/hf_spaces가 특히 중요.
 
 ## STEP 5: Build and save to Supabase
 
