@@ -190,6 +190,8 @@ Expected: `created_at` is ISO 8601 (e.g. `"2026-06-01T14:23:00.000-07:00"`).
 
 - [ ] **Step 2: Edit prompt to parse ISO → epoch**
 
+**Important:** jq 1.7.1's `fromdateiso8601` only accepts `YYYY-MM-DDTHH:MM:SSZ` — it rejects fractional seconds AND offsets. Lobsters returns `2026-06-01T14:23:00.000-07:00` (both). We use `capture()` to extract the bare datetime + signed offset, parse the bare part as UTC, then subtract the offset.
+
 In `news_fetcher_prompt.md` STEP 3-3, change the jq block:
 
 ```bash
@@ -201,11 +203,21 @@ jq '[.[:25][] | {
   title, url, score,
   source: "lobsters",
   summary: "",
-  published_at: (.created_at // null | if . then (fromdateiso8601? // null) else null end)
+  published_at: (.created_at // null | if . then (
+    capture("^(?<dt>[^.]+)\\.(?<frac>[0-9]+)(?<sign>[+-])(?<hh>[0-9]{2}):(?<mm>[0-9]{2})$") |
+    (.dt + "Z" | fromdateiso8601) -
+    ((.sign + "1" | tonumber) * ((.hh | tonumber) * 3600 + (.mm | tonumber) * 60))
+  ) // null else null end)
 }]' /tmp/raw_lobsters.json > /tmp/parsed_lobsters.json 2>/dev/null || echo '[]' > /tmp/parsed_lobsters.json
 ```
 
-Note: `fromdateiso8601?` returns `null` on parse failure (some timezones jq can't handle); the `?` suppresses errors.
+How the math works for input `2026-06-01T14:23:00.000-07:00`:
+- `capture` extracts `dt=2026-06-01T14:23:00`, `sign=-`, `hh=07`, `mm=00`.
+- `(.dt + "Z" | fromdateiso8601)` parses `2026-06-01T14:23:00Z` as a naive UTC epoch.
+- Subtract `((sign + "1") | tonumber) * (7*3600 + 0*60)` = `-1 * 25200` = `-25200`.
+- Result: naive_utc_epoch - (-25200) = naive_utc_epoch + 25200 = correctly shifts wall-clock −07:00 to UTC.
+
+Outer `capture(...) // null` returns `null` if regex doesn't match (defensive — Lobsters always returns this format, but the fallback prevents a crash if format ever changes).
 
 - [ ] **Step 3: Verify with a live mini-run**
 
@@ -304,36 +316,43 @@ on each item."
 - [ ] **Step 1: Confirm HF API field shape**
 
 ```bash
-curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=1" | jq '.[0] | keys'
-curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=1" | jq '.[0] | {id, lastModified, createdAt, trendingScore}'
+# Default API call does NOT include lastModified. Must use full=true.
+curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=1&full=true" \
+  | jq '.[0] | {id, lastModified, createdAt, trendingScore}'
 ```
-Expected: `lastModified` is ISO 8601. `createdAt` may or may not exist. We use `lastModified` (more meaningful for "trending now").
+Expected: `lastModified` is ISO 8601 with format `YYYY-MM-DDTHH:MM:SS.NNNZ` (fractional milliseconds + Z, no offset). `createdAt` same format. We use `lastModified` (more meaningful for "trending now").
 
-- [ ] **Step 2: Edit prompt to parse `lastModified` → epoch**
+**Critical:** jq 1.7.1's `fromdateiso8601` rejects fractional seconds, so we must strip `.NNN` before parsing. Use `gsub` to drop fractional milliseconds from the Z-suffixed timestamp.
 
-In `news_fetcher_prompt.md` STEP 3-8, change the jq block:
+- [ ] **Step 2: Edit prompt — add `full=true` AND parse `lastModified`**
+
+In `news_fetcher_prompt.md` STEP 3-8, change both the curl URL and the jq block:
 
 ```bash
-# BEFORE (line ~174):
+# BEFORE (lines ~173-174):
+curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15" > /tmp/raw_hf_spaces.json
 jq '[.[] | {title: .id, url: ("https://huggingface.co/spaces/" + .id), score: (.trendingScore // 0), source: "hf_spaces", summary: ""}]' /tmp/raw_hf_spaces.json > /tmp/parsed_hf_spaces.json 2>/dev/null || echo '[]' > /tmp/parsed_hf_spaces.json
 
 # AFTER:
+curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15&full=true" > /tmp/raw_hf_spaces.json
 jq '[.[] | {
   title: .id,
   url: ("https://huggingface.co/spaces/" + .id),
   score: (.trendingScore // 0),
   source: "hf_spaces",
   summary: "",
-  published_at: (.lastModified // null | if . then (fromdateiso8601? // null) else null end)
+  published_at: (.lastModified // null | if . then ((. | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601?) // null) else null end)
 }]' /tmp/raw_hf_spaces.json > /tmp/parsed_hf_spaces.json 2>/dev/null || echo '[]' > /tmp/parsed_hf_spaces.json
 ```
+
+How the `gsub` works: `"2026-05-29T02:57:22.000Z"` → strip `.000Z` and replace with `Z` → `"2026-05-29T02:57:22Z"` → `fromdateiso8601?` parses to epoch. If the format is ever different (no fractional part), `gsub` is a no-op and parsing still works.
 
 - [ ] **Step 3: Verify with a live mini-run**
 
 ```bash
-curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=5" > /tmp/raw_hf.json
+curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=5&full=true" > /tmp/raw_hf.json
 jq '[.[] | {
-  id, published_at: (.lastModified // null | if . then (fromdateiso8601? // null) else null end)
+  id, published_at: (.lastModified // null | if . then ((. | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601?) // null) else null end)
 }] | .[] | {id, published_at, age_hours: (if .published_at then ((now - .published_at) / 3600 | floor) else null end)}' /tmp/raw_hf.json
 ```
 Expected: most items populated; `age_hours` typically 0-168 (some trending Spaces are older but recently updated).
