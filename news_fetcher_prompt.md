@@ -108,7 +108,16 @@ done
 
 ```bash
 curl -s "https://lobste.rs/hottest.json" > /tmp/raw_lobsters.json
-jq '[.[:25][] | {title, url, score, source: "lobsters", summary: ""}]' /tmp/raw_lobsters.json > /tmp/parsed_lobsters.json 2>/dev/null || echo '[]' > /tmp/parsed_lobsters.json
+jq '[.[:25][] | {
+  title, url, score,
+  source: "lobsters",
+  summary: "",
+  published_at: (.created_at // null | if . then (
+    capture("^(?<dt>[^.]+)\\.(?<frac>[0-9]+)(?<sign>[+-])(?<hh>[0-9]{2}):(?<mm>[0-9]{2})$") |
+    (.dt + "Z" | fromdateiso8601) -
+    ((.sign + "1" | tonumber) * ((.hh | tonumber) * 3600 + (.mm | tonumber) * 60))
+  ) // null else null end)
+}]' /tmp/raw_lobsters.json > /tmp/parsed_lobsters.json 2>/dev/null || echo '[]' > /tmp/parsed_lobsters.json
 echo "lobsters: $(jq length /tmp/parsed_lobsters.json) items"
 ```
 
