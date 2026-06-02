@@ -190,8 +190,15 @@ Use WebFetch to read https://www.anthropic.com/news and extract articles **publi
 ### 3-8. Hugging Face Spaces Trending
 
 ```bash
-curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15" > /tmp/raw_hf_spaces.json
-jq '[.[] | {title: .id, url: ("https://huggingface.co/spaces/" + .id), score: (.trendingScore // 0), source: "hf_spaces", summary: ""}]' /tmp/raw_hf_spaces.json > /tmp/parsed_hf_spaces.json 2>/dev/null || echo '[]' > /tmp/parsed_hf_spaces.json
+curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15&full=true" > /tmp/raw_hf_spaces.json
+jq '[.[] | {
+  title: .id,
+  url: ("https://huggingface.co/spaces/" + .id),
+  score: (.trendingScore // 0),
+  source: "hf_spaces",
+  summary: "",
+  published_at: (.lastModified // null | if . then ((. | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601?) // null) else null end)
+}]' /tmp/raw_hf_spaces.json > /tmp/parsed_hf_spaces.json 2>/dev/null || echo '[]' > /tmp/parsed_hf_spaces.json
 echo "hf_spaces: $(jq length /tmp/parsed_hf_spaces.json) items"
 ```
 
