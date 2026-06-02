@@ -43,8 +43,13 @@ Use Bash (NOT WebFetch) to fetch and parse HackerNews. This avoids hallucinating
 HN_IDS=$(curl -s "https://hacker-news.firebaseio.com/v0/topstories.json" | jq -r '.[:20][]')
 
 # Fetch each item and filter: only type=="story", must have title
+# NOTE: use `while read` + here-string, NOT `for id in $HN_IDS`.
+# This script runs under zsh, which does NOT word-split unquoted variables,
+# so `for id in $HN_IDS` would loop once with all 20 IDs as a single string.
+# Here-string keeps the loop in the current shell so $HN_ITEMS accumulates.
 HN_ITEMS="[]"
-for id in $HN_IDS; do
+while IFS= read -r id; do
+  [ -z "$id" ] && continue
   item=$(curl -s "https://hacker-news.firebaseio.com/v0/item/${id}.json")
   type=$(echo "$item" | jq -r '.type // "unknown"')
   title=$(echo "$item" | jq -r '.title // ""')
@@ -56,11 +61,13 @@ for id in $HN_IDS; do
     if [ -z "$url" ] || [ "$url" = "null" ]; then
       url="https://news.ycombinator.com/item?id=${actual_id}"
     fi
+    hn_time=$(echo "$item" | jq -r '.time // empty')
     entry=$(jq -n --arg t "$title" --arg u "$url" --argjson s "$score" \
-      '{"title":$t,"url":$u,"score":$s,"source":"hackernews"}')
+      --argjson pa "${hn_time:-null}" \
+      '{"title":$t,"url":$u,"score":$s,"source":"hackernews","published_at":$pa}')
     HN_ITEMS=$(echo "$HN_ITEMS" | jq --argjson e "$entry" '. += [$e]')
   fi
-done
+done <<< "$HN_IDS"
 echo "HN items: $(echo "$HN_ITEMS" | jq length)"
 echo "$HN_ITEMS" | jq -r '.[] | "  [\(.score)] \(.title)"'
 ```
@@ -90,7 +97,8 @@ for sub in artificial claudeai vibecoding codex claudecode openclaw; do
     score,
     url: (if .is_self then ("https://reddit.com" + .permalink) else .url end),
     summary: (.selftext[:200] // ""),
-    source: $src
+    source: $src,
+    published_at: (.created_utc // null | if . then (. | floor) else null end)
   }]' /tmp/raw_reddit_${sub}.json > /tmp/parsed_reddit_${sub}.json 2>/dev/null || echo '[]' > /tmp/parsed_reddit_${sub}.json
   echo "$src: $(jq length /tmp/parsed_reddit_${sub}.json) items"
 done
@@ -100,17 +108,26 @@ done
 
 ```bash
 curl -s "https://lobste.rs/hottest.json" > /tmp/raw_lobsters.json
-jq '[.[:25][] | {title, url, score, source: "lobsters", summary: ""}]' /tmp/raw_lobsters.json > /tmp/parsed_lobsters.json 2>/dev/null || echo '[]' > /tmp/parsed_lobsters.json
+jq '[.[:25][] | {
+  title, url, score,
+  source: "lobsters",
+  summary: "",
+  published_at: (.created_at // null | if . then (
+    capture("^(?<dt>[^.]+)\\.(?<frac>[0-9]+)(?<sign>[+-])(?<hh>[0-9]{2}):(?<mm>[0-9]{2})$") |
+    (.dt + "Z" | fromdateiso8601) -
+    ((.sign + "1" | tonumber) * ((.hh | tonumber) * 3600 + (.mm | tonumber) * 60))
+  ) // null else null end)
+}]' /tmp/raw_lobsters.json > /tmp/parsed_lobsters.json 2>/dev/null || echo '[]' > /tmp/parsed_lobsters.json
 echo "lobsters: $(jq length /tmp/parsed_lobsters.json) items"
 ```
 
 ### 3-4. GitHub Trending
 
-Use WebFetch to read https://github.com/trending and extract the top 20 trending repositories. For each repo extract: the `owner/repo` name, description, and star count. Save to `/tmp/parsed_github.json` with format `[{"title": "owner/repo", "url": "https://github.com/owner/repo", "score": STARS, "source": "github", "summary": "description"}]`. Print `github: N items`.
+Use WebFetch to read https://github.com/trending and extract the top 20 trending repositories. For each repo extract: the `owner/repo` name, description, and star count. Save to `/tmp/parsed_github.json` with format `[{"title": "owner/repo", "url": "https://github.com/owner/repo", "score": STARS, "source": "github", "summary": "description", "published_at": null}]`. Note: GitHub Trending exposes no per-repo publication time; always set `published_at` to `null`. The curate prompt treats `null` as moderate freshness, which matches the semantics of "trending right now". Print `github: N items`.
 
 ### 3-5. GeekNews
 
-Use WebFetch to read https://news.hada.io and extract the top 15 stories. Each story has a title, external URL, and point score. Return them as a JSON array and save to `/tmp/parsed_geeknews.json` with format `[{"title": "...", "url": "...", "score": N, "source": "geeknews", "summary": ""}]`. Print `geeknews: N items`.
+Use WebFetch to read https://news.hada.io and extract the top 15 stories. Each story has a title, external URL, a point score, and a relative submission time (e.g. "5분전", "2시간전", "1일전"). Convert the relative time to a Unix epoch (e.g. "5분전" → `now - 300`, "2시간전" → `now - 7200`, "1일전" → `now - 86400`). If the unit is 주 (weeks) or 개월/달 (months), set `published_at` to `null` instead of computing — the recency rubric will treat these as moderately old, but anything that GeekNews surfaces as "weeks/months ago" is outside our 7-day fresh window anyway. Return them as a JSON array and save to `/tmp/parsed_geeknews.json` with format `[{"title": "...", "url": "...", "score": N, "source": "geeknews", "summary": "", "published_at": <epoch>}]`. If you cannot determine the relative time for an item, set `published_at` to `null`. Print `geeknews: N items`.
 
 ### 3-6. OpenAI News (RSS)
 
@@ -150,7 +167,15 @@ for item in items_raw:
     title = title_m.group(1).strip()
     url = link_m.group(1).strip()
     summary = re.sub(r'<[^>]+>', '', desc_m.group(1)).strip()[:200] if desc_m else ''
-    items.append({'title': title, 'url': url, 'score': 0, 'source': 'openai', 'summary': summary})
+    published_at = None
+    if pub_m:
+        try:
+            from email.utils import parsedate_to_datetime
+            pd = parsedate_to_datetime(pub_m.group(1).strip())
+            published_at = int(pd.timestamp())
+        except Exception:
+            pass
+    items.append({'title': title, 'url': url, 'score': 0, 'source': 'openai', 'summary': summary, 'published_at': published_at})
     if len(items) >= 15:
         break
 json.dump(items, open('/tmp/parsed_openai.json', 'w'))
@@ -160,13 +185,20 @@ PYEOF
 
 ### 3-7. Anthropic (Claude Official) News
 
-Use WebFetch to read https://www.anthropic.com/news and extract articles **published within the last 7 days only**. Each article links to a `/news/SLUG` URL and has a visible publication date on the page. Skip anything older than 7 days from today. Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible"}]`. Print `anthropic: N items (last 7 days)`.
+Use WebFetch to read https://www.anthropic.com/news and extract articles **published within the last 7 days only**. Each article links to a `/news/SLUG` URL and has a visible publication date on the page (e.g. "May 28, 2026"). Skip anything older than 7 days from today. Convert the visible publication date to a Unix epoch (seconds; use 00:00:00 UTC for the time component if only a date is shown). Return as a JSON array and save to `/tmp/parsed_anthropic.json` with format `[{"title": "...", "url": "https://www.anthropic.com/news/SLUG", "score": 0, "source": "anthropic", "summary": "one-line description if visible", "published_at": <epoch>}]`. If you cannot determine the date for a given item, set `published_at` to `null` (do not guess). Print `anthropic: N items (last 7 days)`.
 
 ### 3-8. Hugging Face Spaces Trending
 
 ```bash
-curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15" > /tmp/raw_hf_spaces.json
-jq '[.[] | {title: .id, url: ("https://huggingface.co/spaces/" + .id), score: (.trendingScore // 0), source: "hf_spaces", summary: ""}]' /tmp/raw_hf_spaces.json > /tmp/parsed_hf_spaces.json 2>/dev/null || echo '[]' > /tmp/parsed_hf_spaces.json
+curl -s "https://huggingface.co/api/spaces?sort=trendingScore&limit=15&full=true" > /tmp/raw_hf_spaces.json
+jq '[.[] | {
+  title: .id,
+  url: ("https://huggingface.co/spaces/" + .id),
+  score: (.trendingScore // 0),
+  source: "hf_spaces",
+  summary: "",
+  published_at: (.lastModified // null | if . then ((. | gsub("\\.[0-9]+Z$"; "Z") | fromdateiso8601?) // null) else null end)
+}]' /tmp/raw_hf_spaces.json > /tmp/parsed_hf_spaces.json 2>/dev/null || echo '[]' > /tmp/parsed_hf_spaces.json
 echo "hf_spaces: $(jq length /tmp/parsed_hf_spaces.json) items"
 ```
 
@@ -219,21 +251,95 @@ else
 fi
 ```
 
-### 4-3. 각 소스 top 10 선택 후 WebFetch (summary 없는 것만)
+### 4-3. Summary 채우기 (MANDATORY — 스킵 금지)
 
-For each source in the merged file, pick top 10 by score. For items without a summary:
-- Skip: i.redd.it / v.redd.it / imgur / reddit.com/gallery/ → summary = ""
-- Check url_summaries.json cache first
-- WebFetch if not cached → write 1-line summary (max 150 chars, "what can I DO with this?")
-- Save to cache: `jq '. += [{"url": URL, "summary": SUMMARY, "ts": NOW_EPOCH}]' "$CACHE_FILE" > tmp && mv tmp "$CACHE_FILE"`
+**⚠️ 이 단계는 절대 스킵하지 말 것. hackernews/lobsters/hf_spaces는 이 단계 없으면 summary가 빈 채로 저장돼서 curate에서 전부 버려짐.**
 
-**⚠️ summary 저장 시 URL은 `jq`로 원본 항목에서 읽을 것. URL을 직접 타이핑하지 말 것.**
+#### 4-3-1. Summary 필요한 URL 리스트 만들기 (deterministic)
 
-After updating summaries, write the final items back to file:
 ```bash
-# summary 업데이트는 jq로 원본 파일 수정 (URL 불변)
-# 예: jq --arg url "..." --arg s "..." 'map(if .url == $url then .summary = $s else . end)' /tmp/all_items_merged.json > /tmp/news_items.json
+# 캐시에 있는 URL 집합
+jq -r '.[].url' "$CACHE_FILE" | sort -u > /tmp/cached_urls.txt
+
+# top 10 per source, summary 비어있고, 캐시에도 없고, 미디어 URL 아닌 것
+jq -r '
+  group_by(.source)
+  | map(sort_by(-(.score // 0))[:10])
+  | flatten
+  | .[]
+  | select((.summary // "") == "")
+  | select((.url | test("i\\.redd\\.it|v\\.redd\\.it|imgur|reddit\\.com/gallery|\\.(jpg|jpeg|png|gif|mp4|webm)$")) | not)
+  | .url
+' /tmp/all_items_merged.json | sort -u > /tmp/needs_fetch_raw.txt
+
+# 캐시 히트 먼저 적용 (WebFetch 하기 전에)
+comm -23 /tmp/needs_fetch_raw.txt /tmp/cached_urls.txt > /tmp/needs_webfetch.txt
+
+# 캐시 히트 URL은 바로 summary 복사
+comm -12 /tmp/needs_fetch_raw.txt /tmp/cached_urls.txt > /tmp/cache_hits.txt
+while IFS= read -r url; do
+  [ -z "$url" ] && continue
+  summary=$(jq -r --arg u "$url" '.[] | select(.url == $u) | .summary' "$CACHE_FILE" | head -1)
+  [ -z "$summary" ] && continue
+  jq --arg u "$url" --arg s "$summary" \
+    'map(if .url == $u then .summary = $s else . end)' \
+    /tmp/all_items_merged.json > /tmp/merged.tmp && mv /tmp/merged.tmp /tmp/all_items_merged.json
+done < /tmp/cache_hits.txt
+
+echo "=== Summary fetch plan ==="
+echo "Cache hits applied: $(wc -l < /tmp/cache_hits.txt | tr -d ' ')"
+echo "Need WebFetch: $(wc -l < /tmp/needs_webfetch.txt | tr -d ' ')"
+echo ""
+echo "=== URLs to WebFetch (MANDATORY — do ALL of them) ==="
+cat /tmp/needs_webfetch.txt
 ```
+
+#### 4-3-2. Helper 함수 정의
+
+```bash
+add_summary() {
+  local url="$1"
+  local summary="$2"
+  local ts=$(date +%s)
+  jq --arg u "$url" --arg s "$summary" \
+    'map(if .url == $u then .summary = $s else . end)' \
+    /tmp/all_items_merged.json > /tmp/merged.tmp && mv /tmp/merged.tmp /tmp/all_items_merged.json
+  jq --arg u "$url" --arg s "$summary" --argjson ts "$ts" \
+    '. += [{url: $u, summary: $s, ts: $ts}]' \
+    "$CACHE_FILE" > "${CACHE_FILE}.tmp" && mv "${CACHE_FILE}.tmp" "$CACHE_FILE"
+}
+```
+
+#### 4-3-3. 각 URL에 대해 WebFetch 실행
+
+**`/tmp/needs_webfetch.txt`에 있는 URL을 전부 WebFetch 해. 예외 없음.**
+
+각 URL마다:
+1. WebFetch로 페이지 내용 읽기 (prompt: `"Extract the main content. What is this article/repo/tool about? Be concrete."`)
+2. 그 내용으로 1줄 요약 작성 (최대 150자, 영어, "what can I DO with this?" 관점)
+3. `add_summary "<url>" "<summary>"` 실행
+
+**⚠️ URL을 직접 타이핑하지 말 것 — `/tmp/needs_webfetch.txt`에서 복사해서 사용.**
+**⚠️ WebFetch가 404/block/timeout이면 summary = "" 로 두고 다음 URL로 넘어가. 에러 시 `add_summary "<url>" ""` 호출해서 캐시에 빈 값 저장(반복 fetch 방지).**
+
+#### 4-3-4. 검증
+
+```bash
+# top 10 per source 중에서 여전히 summary 비어있는 non-media 아이템 개수
+jq '
+  group_by(.source)
+  | map(sort_by(-(.score // 0))[:10])
+  | flatten
+  | map(select(
+      (.summary // "") == ""
+      and ((.url | test("i\\.redd\\.it|v\\.redd\\.it|imgur|reddit\\.com/gallery|\\.(jpg|jpeg|png|gif|mp4|webm)$")) | not)
+    ))
+  | group_by(.source)
+  | map({source: .[0].source, missing: length})
+' /tmp/all_items_merged.json
+```
+
+위 출력에서 `missing` 수가 많으면 (>3) WebFetch를 더 돌려. hackernews/lobsters/hf_spaces가 특히 중요.
 
 ## STEP 5: Build and save to Supabase
 
