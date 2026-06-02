@@ -1,6 +1,6 @@
-# Curate top 30 AI news for vibe coders & AI builders
+# Curate top 50 AI news for vibe coders & AI builders
 
-Read all items from the latest news_cache and pick **top 30 that vibe coders and AI automation builders would actually care about**. NOT for researchers. NOT for security experts. For people who BUILD with AI every day.
+Read all items from the latest news_cache and pick **top 50 that vibe coders and AI automation builders would actually care about**. NOT for researchers. NOT for security experts. For people who BUILD with AI every day.
 
 ## Environment Variables
 - `SUPABASE_URL` — Supabase project URL
@@ -17,7 +17,17 @@ curl -s "${SUPABASE_URL}/rest/v1/news_cache?order=created_at.desc&limit=1&select
 jq 'length' /tmp/all_items.json
 
 # 인덱스 번호와 함께 출력 (선택 시 인덱스를 사용하기 위해)
-jq -r 'to_entries[] | "[\(.key)] (\(.value.source)) \(.value.title)" + (if .value.summary and .value.summary != "" then "\n     > \(.value.summary[:150])" else "" end)' /tmp/all_items.json
+# age_h: 신선도(시간). published_at이 null이면 "?" 표시 → 큐레이트가 중립으로 취급.
+NOW_EPOCH=$(date +%s)
+jq -r --argjson now "$NOW_EPOCH" '
+  to_entries[]
+  | .key as $i
+  | .value as $v
+  | ($v.published_at // null) as $pa
+  | (if $pa then (($now - $pa) / 3600 | floor | tostring + "h") else "?" end) as $age
+  | "[\($i)] (\($v.source)) [age=\($age)] \($v.title)"
+    + (if $v.summary and $v.summary != "" then "\n     > \($v.summary[:150])" else "" end)
+' /tmp/all_items.json
 ```
 
 Review ALL items. Each item is shown with its **index number** `[N]`.
@@ -41,7 +51,17 @@ Items with empty summary = content was garbage or inaccessible → skip them.
 - 순수 연구 논문
 - 개인 프로덕트 광고
 
-**신선도:** 오래된 발표(1주일 이상 지난 것)는 제외. 제목이나 요약에서 출시/발표 날짜가 명확히 오래됐으면 스킵.
+**신선도 가중치 (CRITICAL):**
+
+리스트에 각 아이템 옆에 `[age=Nh]` (또는 `[age=?]`) 가 붙어있다. 이게 1차 정렬 신호다.
+
+- `age < 24h` → **부스트**. 동일 카테고리 내 경쟁자보다 우선.
+- `24h ≤ age < 72h` → 중립.
+- `72h ≤ age < 168h (7일)` → **디스카운트**. 더 신선한 대안이 있으면 그걸 선택.
+- `age ≥ 168h (7일)` → **스킵**. 단, 정말 예외적으로 중요한 발표(예: 새 모델/메이저 가격 변동/대형 인수)만 살리고 그 외 제외.
+- `age=?` (published_at null) → **중립** 취급. GitHub Trending이 대표적 — "지금 뜨고 있다"는 자체로 신호이므로 패널티 없음. 단, 동점일 때 시각 정보 있는 아이템을 우선.
+
+**왜 중요한가:** 다운스트림 자동화가 며칠 전에 이미 소비한 아이템이 같은 풀에서 반복 등장하면 결과가 빈약해진다. age 기반 weighting이 이 회전을 강제한다.
 
 **핵심 필터: "이걸 읽고 뭘 할 수 있나?"**
 - 새 도구를 써볼 수 있다 → ✅
@@ -50,19 +70,19 @@ Items with empty summary = content was garbage or inaccessible → skip them.
 - 새 모델을 테스트할 수 있다 → ✅
 - 그냥 "와 무섭다/웃기다"로 끝나면 → ❌
 
-**소스 다양성:**
-- 한 소스(서브레딧 포함)에서 max 3개
-- **reddit_* 전체 합산 max 6개** (서브레딧이 여러 개여도 reddit 총합 6개 넘지 말 것)
+**소스 다양성 (풀 50 기준):**
+- 한 소스(서브레딧 포함)에서 max 5개
+- **reddit_* 전체 합산 max 10개** (서브레딧이 여러 개여도 reddit 총합 10개 넘지 말 것)
 - show_hn 소스 전부 제외
 - i.redd.it / v.redd.it URL이 있는 항목도 제외 (이미지/동영상만 있는 포스트)
 - **최소 할당량 (반드시 포함):**
-  - github: 최소 2개 — GitHub Trending 레포는 "오늘 당장 설치해볼 수 있는 도구"라서 바이브코더한테 핵심. 요약이 있는 레포 우선
-  - geeknews: 최소 1개
-  - hackernews: 최소 2개
+  - github: 최소 4개 — GitHub Trending 레포는 "오늘 당장 설치해볼 수 있는 도구"라서 바이브코더한테 핵심. 요약이 있는 레포 우선
+  - geeknews: 최소 2개
+  - hackernews: 최소 3개
 
-선택이 끝나면 선택한 인덱스를 공백으로 구분해서 출력:
+선택이 끝나면 선택한 인덱스를 공백으로 구분해서 출력 (정확히 50개):
 ```
-SELECTED_INDICES: 3 7 12 15 21 25 30 42 55 61 ...
+SELECTED_INDICES: 3 7 12 15 21 25 30 42 55 61 ... (총 50개)
 ```
 
 ## STEP 3: Extract by index and add summaries — NO manual URL writing
@@ -71,7 +91,7 @@ SELECTED_INDICES: 3 7 12 15 21 25 30 42 55 61 ...
 
 ```bash
 # STEP 2에서 결정한 인덱스로 원본 데이터에서 추출 (URL 오염 불가)
-INDICES="3 7 12 15 21 25 30 42 55 61"  # ← STEP 2 결과로 교체
+INDICES="3 7 12 15 21 25 30 42 55 61 ..."  # ← STEP 2 결과 50개로 교체
 
 # 인덱스 배열을 jq 형식으로 변환 후 추출
 IDX_ARRAY=$(echo $INDICES | tr ' ' '\n' | jq -R 'tonumber' | jq -s '.')
@@ -122,4 +142,4 @@ curl -s -X POST "${SUPABASE_URL}/rest/v1/news_curated" \
   -d @/tmp/curated.json
 ```
 
-Print "Curated: N items saved to news_curated."
+Print "Curated: N items saved to news_curated." (Expected: 50.)
